@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-tariff-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-tariff
+  template:
+    metadata:
+      labels:
+        app: order-tariff
+    spec:
+      containers:
+      - name: order-tariff-container
+        image: sidra17/order-tariff-service:latest
+        ports:
+        - containerPort: 8080

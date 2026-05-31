@@ -1,0 +1,179 @@
+version: '3.8'
+
+services:
+  # --- WAREHOUSE & INVENTORY SERVICE ---
+  warehouse-app:
+    build:
+      context: ./warehouse-and-inventory-service
+      dockerfile: Dockerfile
+    container_name: warehouse-app
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=warehouse-db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=papiton_warehouse
+      - DB_PORT=5432
+    depends_on:
+      warehouse-db:
+        condition: service_healthy
+    networks:
+      - papiton-net
+
+  warehouse-db:
+    image: postgres:15-alpine
+    container_name: warehouse-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: papiton_warehouse
+    ports:
+      - "5432:5432"
+    volumes:
+      - warehouse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d papiton_warehouse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - papiton-net
+
+  # --- SHIPPING SERVICE ---
+  shipping-app:
+    build:
+      context: ./shipping-service
+      dockerfile: Dockerfile
+    container_name: shipping-app
+    ports:
+      - "8081:8080" # Diakses via port 8081 di localhost
+    environment:
+      - DB_HOST=shipping-db
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=shipping_test_db
+      - MONGO_URI=mongodb://shipping-mongo:27017
+    depends_on:
+      shipping-db:
+        condition: service_healthy
+      shipping-mongo:
+        condition: service_started
+    networks:
+      - papiton-net
+
+  shipping-db:
+    image: postgres:15-alpine
+    container_name: shipping-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: shipping_test_db
+    ports:
+      - "5433:5432" # Diakses via port 5433 di localhost untuk menghindari konflik
+    volumes:
+      - shipping_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d shipping_test_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - papiton-net
+
+  shipping-mongo:
+    image: mongo:6-jammy
+    container_name: shipping-mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - papiton-net
+
+  # --- ORDER & TARIFF SERVICE ---
+  order-app:
+    build:
+      context: ./order-tariff-service
+      dockerfile: dockerfile
+    container_name: order-app
+    ports:
+      - "8082:8080" # Diakses via port 8082 di localhost
+    environment:
+      - DB_HOST=order-db
+      - DB_USER=postgres
+      - DB_PASSWORD=admin123
+      - DB_NAME=papiton_order_tariff_service_db
+      - DB_PORT=5432
+      - REDIS_HOST=order-redis
+      - REDIS_PORT=6379
+    depends_on:
+      order-db:
+        condition: service_healthy
+      order-redis:
+        condition: service_started
+    networks:
+      - papiton-net
+
+  # --- ORDER & TARIFF DB & REDIS ---
+  order-db:
+    image: postgres:15-alpine
+    container_name: order-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: papiton_order_tariff_service_db
+    ports:
+      - "5434:5432" # Diakses via port 5434 di localhost untuk menghindari konflik
+    volumes:
+      - order_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d papiton_order_tariff_service_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - papiton-net
+
+  order-redis:
+    image: redis:alpine
+    container_name: order-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - papiton-net
+
+  # --- TRACKING & LOG EVENT SERVICE ---
+  tracking-app:
+    build:
+      context: ./tracking-and-logevent-service
+      dockerfile: Dockerfile
+    container_name: tracking-app
+    ports:
+      - "8083:8080" # Diakses via port 8083 di localhost
+    environment:
+      - MONGO_URI=mongodb://tracking-mongo:27017
+      - DB_NAME=tracking_db
+    depends_on:
+      - tracking-mongo
+    networks:
+      - papiton-net
+
+  tracking-mongo:
+    image: mongo:6-jammy
+    container_name: tracking-mongo
+    ports:
+      - "27018:27017" # Diakses via port 27018 di localhost untuk menghindari konflik dengan shipping-mongo
+    volumes:
+      - tracking_mongodata:/data/db
+    networks:
+      - papiton-net
+
+networks:
+  papiton-net:
+    driver: bridge
+
+volumes:
+  warehouse_pgdata:
+  shipping_pgdata:
+  order_pgdata:
+  tracking_mongodata:

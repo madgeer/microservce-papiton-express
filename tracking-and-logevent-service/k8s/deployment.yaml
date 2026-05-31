@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking-service
+  labels:
+    app: tracking-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tracking-service
+  template:
+    metadata:
+      labels:
+        app: tracking-service
+    spec:
+      containers:
+      - name: tracking-service
+        image: tracking-service:latest
+        ports:
+        - containerPort: 8080

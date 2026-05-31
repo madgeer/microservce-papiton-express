@@ -1,0 +1,134 @@
+node {
+    def registry = "madgeer"
+    def gitBranch = 'main'
+    def gitUrl = 'https://github.com/madgeer/papiton-express.git'
+
+    def service = [
+        id: 'shipping',
+        path: 'shipping-service',
+        dockerfile: 'Dockerfile',
+        deployment: 'shipping-service-deployment',
+        container: 'shipping-service',
+        imageName: 'shipping-service',
+        functionalTestPath: './internal/repository/... ./internal/handler/...'
+    ]
+
+    def stageFailures = [:]
+
+    try {
+        stage('Checkout') {
+            echo "Checking out repository from branch ${gitBranch}..."
+            git url: gitUrl, branch: gitBranch
+        }
+
+        // --- STAGE: UNIT TESTS ---
+        try {
+            stage('Unit Tests') {
+                docker.image('golang:1.26-alpine').inside {
+                    echo "Running unit tests for ${service.id}..."
+                    dir(service.path) {
+                        sh 'go test -short ./...'
+                    }
+                }
+            }
+        } catch (Exception e) {
+            stageFailures['Unit Tests'] = e.message
+            currentBuild.result = 'UNSTABLE'
+        }
+
+        // --- STAGE: LINT/VET ---
+        try {
+            stage('Lint/Vet') {
+                docker.image('golang:1.26-alpine').inside {
+                    echo "Running go vet for ${service.id}..."
+                    dir(service.path) {
+                        sh 'go vet ./...'
+                    }
+                }
+            }
+        } catch (Exception e) {
+            stageFailures['Lint/Vet'] = e.message
+            currentBuild.result = 'UNSTABLE'
+        }
+
+        // --- STAGE: BUILD IMAGE ---
+        try {
+            stage('Build Image') {
+                echo "Building Docker image for ${service.id}..."
+                dir(service.path) {
+                    sh "docker build -f ${service.dockerfile} -t ${service.imageName}:${BUILD_NUMBER} ."
+                }
+            }
+        } catch (Exception e) {
+            stageFailures['Build Image'] = e.message
+            currentBuild.result = 'UNSTABLE'
+        }
+
+        // --- STAGE: START DATABASES (Untuk Functional Tests) ---
+        try {
+            stage('Start Databases') {
+                echo 'Starting database containers for functional tests...'
+                sh 'docker rm -f shipping-db shipping-mongo || true'
+                sh 'docker run -d --name shipping-db -p 5433:5432 -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=shipping_test_db postgres:15-alpine'
+                sh 'docker run -d --name shipping-mongo -p 27017:27017 mongo:6-jammy'
+                echo 'Waiting for databases to be ready...'
+                sh 'sleep 10'
+            }
+        } catch (Exception e) {
+            stageFailures['Start Databases'] = e.message
+            currentBuild.result = 'UNSTABLE'
+        }
+
+        // --- STAGE: FUNCTIONAL TESTS ---
+        try {
+            stage('Functional Tests') {
+                docker.image('golang:1.26-alpine').inside('--network host -v /var/run/docker.sock:/var/run/docker.sock') {
+                    echo "Running functional tests for ${service.id}..."
+                    dir(service.path) {
+                        sh "go test -tags functional -v ${service.functionalTestPath}"
+                    }
+                }
+            }
+        } catch (Exception e) {
+            stageFailures['Functional Tests'] = e.message
+            currentBuild.result = 'UNSTABLE'
+        }
+
+        // --- CD STAGES: HANYA BERJALAN JIKA SELURUH VERIFIKASI BERHASIL ---
+        if (stageFailures.size() == 0) {
+            stage('Push Image') {
+                echo "Pushing image for ${service.id} to registry..."
+                sh "docker tag ${service.imageName}:${BUILD_NUMBER} ${registry}/${service.imageName}:${BUILD_NUMBER}"
+                sh "docker push ${registry}/${service.imageName}:${BUILD_NUMBER}"
+            }
+
+            stage('Deploy to Kubernetes') {
+                echo "Deploying ${service.id} to Kubernetes..."
+                sh "kubectl set image deployment/${service.deployment} ${service.container}=${registry}/${service.imageName}:${BUILD_NUMBER} -n production"
+            }
+
+            stage('Verify') {
+                echo "Verifying deployment for ${service.id}..."
+                sh "kubectl rollout status deployment/${service.deployment} -n production"
+            }
+
+            currentBuild.result = 'SUCCESS'
+            echo 'Pipeline completed successfully!'
+        } else {
+            currentBuild.result = 'FAILURE'
+            echo "Pipeline completed with failures in: ${stageFailures.keySet()}"
+            error "Pipeline failed due to stage failures: ${stageFailures}"
+        }
+
+    } catch (err) {
+        currentBuild.result = 'FAILURE'
+        echo "Pipeline aborted due to critical error: ${err.message}"
+        throw err
+    } finally {
+        stage('Cleanup') {
+            echo 'Cleaning up database containers...'
+            sh 'docker rm -f shipping-db shipping-mongo || true'
+            echo 'Pipeline execution completed.'
+        }
+    }
+}

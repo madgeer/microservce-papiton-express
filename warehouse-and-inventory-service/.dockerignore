@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Go IDE / Editor
+.vscode/
+.idea/
+
+# Local env files
+.env
+.env.local
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+
+# Mac
+.DS_Store
