@@ -25,6 +25,16 @@ func TestCreateOrder_FullFlow(t *testing.T) {
 		SaveOrder(gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockRepo.EXPECT().
+		GetPricingFromCache(gomock.Any()).
+		Return(0.0, nil).
+		AnyTimes()
+
+	mockRepo.EXPECT().
+		GetCityCode(gomock.Any()).
+		Return("BDG", nil).
+		AnyTimes()
+
 	svc := NewOrderService(mockRepo)
 	req := domain.OrderRequest{
 		Sender: domain.Customer{
