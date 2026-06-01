@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"papiton/notification-service/internal/model"
+
+	"github.com/segmentio/kafka-go"
 )
 
 // EventProcessor adalah interface untuk memproses event yang masuk
@@ -19,12 +22,11 @@ type MessageDispatcher interface {
 }
 
 // KafkaConsumer mengelola konsumsi event dari Kafka
-// Catatan: Implementasi Kafka client nyata membutuhkan confluent-kafka-go
 type KafkaConsumer struct {
-	brokers   string
-	groupID   string
-	topics    []string
-	processor EventProcessor
+	brokers    string
+	groupID    string
+	topics     []string
+	processor  EventProcessor
 	dispatcher MessageDispatcher
 }
 
@@ -44,23 +46,50 @@ func NewKafkaConsumer(
 	}
 }
 
-// Start memulai loop konsumsi event dari Kafka
-// TODO: Ganti placeholder ini dengan implementasi confluent-kafka-go nyata
+// Start memulai loop konsumsi event dari Kafka secara riil menggunakan goroutine untuk setiap topik.
 func (kc *KafkaConsumer) Start(ctx context.Context) error {
 	log.Printf("[KafkaConsumer] Mulai listening pada topics: %v", kc.topics)
 
-	// Contoh loop konsumsi (pseudo-code):
-	// for {
-	//     select {
-	//     case <-ctx.Done():
-	//         return nil
-	//     default:
-	//         msg, err := consumer.ReadMessage(5 * time.Second)
-	//         if err != nil { continue }
-	//         kc.handleMessage(ctx, msg.Value)
-	//     }
-	// }
+	for _, topic := range kc.topics {
+		go func(t string) {
+			r := kafka.NewReader(kafka.ReaderConfig{
+				Brokers:        []string{kc.brokers},
+				GroupID:        kc.groupID,
+				Topic:          t,
+				MinBytes:       10e3, // 10KB
+				MaxBytes:       10e6, // 10MB
+				CommitInterval: 1 * time.Second,
+			})
+			defer r.Close()
 
+			log.Printf("[KafkaConsumer] Goroutine aktif untuk mendengarkan topik: %s", t)
+
+			for {
+				select {
+				case <-ctx.Done():
+					log.Printf("[KafkaConsumer] Menghentikan pendengar untuk topik: %s", t)
+					return
+				default:
+					m, err := r.ReadMessage(ctx)
+					if err != nil {
+						// Jika context ditutup, langsung keluar secara anggun
+						if ctx.Err() != nil {
+							return
+						}
+						log.Printf("[KafkaConsumer] Gagal membaca pesan dari topik %s: %v", t, err)
+						time.Sleep(1 * time.Second)
+						continue
+					}
+
+					log.Printf("[KafkaConsumer] Menerima event baru dari topik %s", t)
+					kc.handleMessage(ctx, m.Value)
+				}
+			}
+		}(topic)
+	}
+
+	<-ctx.Done()
+	log.Println("[KafkaConsumer] Seluruh goroutine pendengar dihentikan.")
 	return nil
 }
 
