@@ -1,16 +1,21 @@
 package service
 
 import (
+	"context"
+	"time"
+
 	"order-tariff-service/internal/domain"
 )
 
 type orderService struct {
-	repo domain.OrderRepository
+	repo      domain.OrderRepository
+	publisher domain.OrderEventPublisher
 }
 
-func NewOrderService(r domain.OrderRepository) domain.OrderService {
+func NewOrderService(r domain.OrderRepository, p domain.OrderEventPublisher) domain.OrderService {
 	return &orderService{
-		repo: r,
+		repo:      r,
+		publisher: p,
 	}
 }
 
@@ -42,6 +47,18 @@ func (s *orderService) CreateOrder(req domain.OrderRequest) (domain.OrderRespons
 	err = s.repo.SaveOrder(req, response)
 	if err != nil {
 		return domain.OrderResponse{}, err
+	}
+
+	// Publish event ke Kafka jika publisher tersedia
+	if s.publisher != nil {
+		event := domain.OrderCreatedEvent{
+			AWB:       response.AWB,
+			Email:     req.Sender.Email,
+			Status:    response.Status,
+			Timestamp: time.Now(),
+		}
+		// Diabaikan error-nya untuk resiliency fallback
+		_ = s.publisher.PublishOrderCreated(context.Background(), event)
 	}
 
 	return response, nil

@@ -32,7 +32,7 @@ func TestInboundFlow_Functional(t *testing.T) {
 		t.Fatal("Database test tidak tersedia, functional test gagal")
 	}
 
-	svc := service.NewInboundService(repo)
+	svc := service.NewInboundService(repo, nil)
 
 	// Eksekusi Fungsi
 	// Simulasi paket baru masuk ke Hub

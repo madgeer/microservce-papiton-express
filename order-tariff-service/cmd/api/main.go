@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"order-tariff-service/internal/handler"
+	"order-tariff-service/internal/repository/kafka"
 	"order-tariff-service/internal/repository/postgres"
 	"order-tariff-service/internal/service"
 )
@@ -25,7 +26,8 @@ func main() {
 
 	// 2. Setup Layer Clean Architecture (Repository -> Service -> Handler)
 	repo := postgres.NewOrderRepository(db)
-	svc := service.NewOrderService(repo)
+	kafkaPub := kafka.NewOrderEventPublisher("papiton.events.order")
+	svc := service.NewOrderService(repo, kafkaPub)
 	orderHandler := handler.NewOrderHandler(svc)
 
 	// 3. Mendaftarkan HTTP Route Handler

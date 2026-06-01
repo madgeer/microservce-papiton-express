@@ -35,7 +35,7 @@ func TestCreateOrder_FullFlow(t *testing.T) {
 		Return("BDG", nil).
 		AnyTimes()
 
-	svc := NewOrderService(mockRepo)
+	svc := NewOrderService(mockRepo, nil)
 	req := domain.OrderRequest{
 		Sender: domain.Customer{
 			Name: "Shidqi",

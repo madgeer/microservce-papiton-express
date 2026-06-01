@@ -10,6 +10,7 @@ import (
 	_ "github.com/lib/pq"
 	"warehouse-inventory-service/internal/handler"
 	"warehouse-inventory-service/internal/repository"
+	"warehouse-inventory-service/internal/repository/kafka"
 	"warehouse-inventory-service/internal/service"
 )
 
@@ -66,7 +67,8 @@ func main() {
 	}
 
 	// 2. Setup Layer Service (Inject Repository ke dalam Service)
-	inboundSvc := service.NewInboundService(inboundRepo)
+	kafkaPub := kafka.NewWarehouseEventPublisher("papiton.events.tracking")
+	inboundSvc := service.NewInboundService(inboundRepo, kafkaPub)
 	manifestSvc := service.NewManifestService(manifestRepo)
 
 	// 3. Setup Layer Handler (Inject Service ke dalam Handler)

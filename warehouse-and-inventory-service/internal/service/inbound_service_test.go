@@ -23,7 +23,7 @@ func TestProcessInbound_Unit(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := NewInboundService(mockRepo)
+	svc := NewInboundService(mockRepo, nil)
 
 	// Contoh resi dengan format: [kode kota]YYMMDDHHMMSS + 4 char random
 	// BDO = Bandung, 240430120000 = YYMMDDHHMMSS, X1Y2 = 4 char random
@@ -47,7 +47,7 @@ func TestValidatePackage_Unit(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := NewInboundService(mockRepo)
+	svc := NewInboundService(mockRepo, nil)
 
 	isValid, isExpress, instructions := svc.ValidatePackage("BDO240430120000X1Y2")
 	
@@ -66,7 +66,7 @@ func TestAssignStorageZone_Unit(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := NewInboundService(mockRepo)
+	svc := NewInboundService(mockRepo, nil)
 
 	// Test untuk paket Express
 	zoneExpress := svc.AssignStorageZone("BDO240430120000X1Y2", true)
@@ -85,7 +85,7 @@ func TestApplySpecialHandling_Unit(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := NewInboundService(mockRepo)
+	svc := NewInboundService(mockRepo, nil)
 
 	// Skenario 1: Tanpa instruksi khusus
 	err := svc.ApplySpecialHandling("BDO240430120000X1Y2", []string{})

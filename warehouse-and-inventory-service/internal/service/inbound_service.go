@@ -1,9 +1,13 @@
 package service
 
-/*
-* import warehouse-inventory-service/internal/repository (mengimpor interface repository)
-*/
-import "warehouse-inventory-service/internal/repository"
+import (
+	"context"
+	"warehouse-inventory-service/internal/repository"
+)
+
+type WarehouseEventPublisher interface {
+	PublishInboundProcessed(ctx context.Context, resi string, warehouseID string) error
+}
 
 /*
 * WarehouseService merepresentasikan domain logic untuk operasional gudang.
@@ -15,7 +19,8 @@ type InboundService struct {
 	* repo disimpan sebagai interface untuk mendukung decoupling.
 	* Ini memungkinkan melakukan Unit Testing tanpa database asli menggunakan Mocking.
 	*/
-	repo repository.InboundRepository
+	repo      repository.InboundRepository
+	publisher WarehouseEventPublisher
 }
 
 /*
@@ -23,9 +28,10 @@ type InboundService struct {
 * Fungsi ini menerima interface repository agar layer di atasnya (misal: Main/Handler)
 * bisa menyuntikkan (inject) implementasi database yang diinginkan.
 */
-func NewInboundService(r repository.InboundRepository) *InboundService {
+func NewInboundService(r repository.InboundRepository, p WarehouseEventPublisher) *InboundService {
 	return &InboundService{
-		repo: r,
+		repo:      r,
+		publisher: p,
 	}
 }
 
@@ -38,7 +44,17 @@ func NewInboundService(r repository.InboundRepository) *InboundService {
 * 4. Trigger bulk update ke Tracking Service secara asynchronous.
 */
 func (s *InboundService) ProcessInbound(resi string, warehouseID string) error {
-	return s.repo.UpdateStockStatus(resi, warehouseID, "AT_HUB")
+	err := s.repo.UpdateStockStatus(resi, warehouseID, "AT_HUB")
+	if err != nil {
+		return err
+	}
+
+	// Kirim event tracking ke Kafka secara tangguh (resilient) jika publisher terkonfigurasi
+	if s.publisher != nil {
+		_ = s.publisher.PublishInboundProcessed(context.Background(), resi, warehouseID)
+	}
+
+	return nil
 }
 
 /*

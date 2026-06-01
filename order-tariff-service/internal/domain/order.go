@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // konstanta agar mudah dipakai
 const (
@@ -68,5 +71,8 @@ type OrderRepository interface {
 	GetDistance(origin, dest Koordinat) (float64, error) //postgis
 	GetPricingFromCache(key string) (float64, error)     //redis
 	GetCityCode(cityName string) (string, error)         //mengambil kode kota untuk awb
+}
 
+type OrderEventPublisher interface {
+	PublishOrderCreated(ctx context.Context, event OrderCreatedEvent) error
 }

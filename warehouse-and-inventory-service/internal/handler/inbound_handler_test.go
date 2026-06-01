@@ -22,7 +22,7 @@ func TestHandleProcessInbound_MethodNotAllowed(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := service.NewInboundService(mockRepo)
+	svc := service.NewInboundService(mockRepo, nil)
 	h := handler.NewInboundHandler(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/inbound", nil)
@@ -44,7 +44,7 @@ func TestHandleProcessInbound_InvalidJSON(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := service.NewInboundService(mockRepo)
+	svc := service.NewInboundService(mockRepo, nil)
 	h := handler.NewInboundHandler(svc)
 
 	reqBody := bytes.NewBufferString(`{invalid-json}`)
@@ -67,7 +67,7 @@ func TestHandleProcessInbound_ServiceError(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := service.NewInboundService(mockRepo)
+	svc := service.NewInboundService(mockRepo, nil)
 	h := handler.NewInboundHandler(svc)
 
 	// Persiapkan ekspektasi mock repository
@@ -102,7 +102,7 @@ func TestHandleProcessInbound_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mocks.NewMockInboundRepository(ctrl)
-	svc := service.NewInboundService(mockRepo)
+	svc := service.NewInboundService(mockRepo, nil)
 	h := handler.NewInboundHandler(svc)
 
 	resi := "BDO240430120000X1Y2"

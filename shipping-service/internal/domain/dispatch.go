@@ -42,3 +42,7 @@ type DispatchService interface {
 	ConfirmPickUp(ctx context.Context, dispatchID string) error
 	UpdateCourierGPS(ctx context.Context, courierID string, lat, long float64) error
 }
+
+type DispatchEventPublisher interface {
+	PublishDispatchAssigned(ctx context.Context, dispatch *Dispatch) error
+}

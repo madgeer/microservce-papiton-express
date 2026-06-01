@@ -9,7 +9,7 @@ import (
 
 func TestAutoDispatchPickUp_ShouldReturnCourier(t *testing.T) {
 
-	dispatchSvc := service.NewDispatchService(nil, nil, nil)
+	dispatchSvc := service.NewDispatchService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	result, err := dispatchSvc.AutoDispatchPickUp(

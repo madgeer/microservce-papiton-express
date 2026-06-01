@@ -12,6 +12,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/madgeer/papiton-express/shipping-service/internal/domain"
 	handlerHttp "github.com/madgeer/papiton-express/shipping-service/internal/handler/http"
+	"github.com/madgeer/papiton-express/shipping-service/internal/repository/kafka"
 	mongoRepo "github.com/madgeer/papiton-express/shipping-service/internal/repository/mongo"
 	"github.com/madgeer/papiton-express/shipping-service/internal/repository/postgres"
 	"github.com/madgeer/papiton-express/shipping-service/internal/service"
@@ -102,7 +103,8 @@ func main() {
 	}
 
 	// 4. Inisialisasi Service & Handler
-	dispatchSvc := service.NewDispatchService(courierRepo, locationRepo, dispatchRepo)
+	kafkaPub := kafka.NewDispatchEventPublisher("papiton.events.shipping")
+	dispatchSvc := service.NewDispatchService(courierRepo, locationRepo, dispatchRepo, kafkaPub)
 	dispatchHandler := handlerHttp.NewDispatchHandler(dispatchSvc)
 
 	// 5. Daftarkan rute HTTP

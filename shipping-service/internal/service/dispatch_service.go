@@ -13,6 +13,7 @@ type dispatchService struct {
 	courierRepo  domain.CourierRepository
 	locationRepo domain.LocationRepository
 	dispatchRepo domain.DispatchRepository
+	publisher    domain.DispatchEventPublisher
 }
 
 /* NewDispatchService constructor untuk membuat instance dispatchService */
@@ -20,11 +21,13 @@ func NewDispatchService(
 	cr domain.CourierRepository,
 	lr domain.LocationRepository,
 	dr domain.DispatchRepository,
+	p domain.DispatchEventPublisher,
 ) domain.DispatchService {
 	return &dispatchService{
 		courierRepo:  cr,
 		locationRepo: lr,
 		dispatchRepo: dr,
+		publisher:    p,
 	}
 }
 
@@ -40,13 +43,17 @@ func (s *dispatchService) AutoDispatchPickUp(
 
 	// Skenario unit test / fallback jika repository bernilai nil
 	if s.courierRepo == nil || s.dispatchRepo == nil {
-		return &domain.Dispatch{
+		dispatch := &domain.Dispatch{
 			ID:               "DSP-" + orderID,
 			OrderID:          orderID,
 			CourierID:        "C-DUMMY",
 			Status:           domain.DispatchStatusAssigned,
 			RouteInstruction: "Jemput paket di zona " + pickupZone,
-		}, nil
+		}
+		if s.publisher != nil {
+			_ = s.publisher.PublishDispatchAssigned(ctx, dispatch)
+		}
+		return dispatch, nil
 	}
 
 	// 1. Cari kurir yang tersedia di zona penjemputan
@@ -80,6 +87,11 @@ func (s *dispatchService) AutoDispatchPickUp(
 	err = s.dispatchRepo.Create(ctx, dispatch)
 	if err != nil {
 		return nil, err
+	}
+
+	// 5. Kirim event dispatch.assigned ke Kafka jika publisher tersedia
+	if s.publisher != nil {
+		_ = s.publisher.PublishDispatchAssigned(ctx, dispatch)
 	}
 
 	return dispatch, nil
