@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/model"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -16,6 +18,10 @@ func NewMongoLogEventRepo(db *mongo.Database) *MongoLogEventRepo {
 }
 
 func (r *MongoLogEventRepo) InsertLog(log model.TrackingLog) error {
-	// TODO: implementasi query insert mongodb
-	return ErrDBNotImplemented
+	if r.db == nil {
+		return ErrDBNotImplemented
+	}
+	collection := r.db.Collection("tracking_logs")
+	_, err := collection.InsertOne(context.Background(), log)
+	return err
 }

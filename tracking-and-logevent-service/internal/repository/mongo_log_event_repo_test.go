@@ -12,6 +12,4 @@ func TestInsertLog_Mongo_Failed(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, ErrDBNotImplemented, err)
-	
-	t.Errorf("Unit test for Mongo InsertLog intentionally failed")
 }

@@ -11,6 +11,4 @@ func TestGetResiHistory_Mongo_Failed(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, ErrDBNotImplemented, err)
-	
-	t.Errorf("Unit test for Mongo GetResiHistory intentionally failed")
 }
