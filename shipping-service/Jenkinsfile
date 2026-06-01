@@ -1,6 +1,6 @@
 node {
     def registry = "madgeer"
-    def gitBranch = 'main'
+    def gitBranch = env.BRANCH_NAME ?: 'kafka-integration'
     def gitUrl = 'https://github.com/madgeer/papiton-express.git'
 
     def service = [
