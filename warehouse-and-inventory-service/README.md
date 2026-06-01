@@ -139,3 +139,23 @@ Untuk menjalankan pengujian unit secara mandiri:
 ```bash
 go test -v ./...
 ```
+
+---
+
+## 🔮 Future Roadmap & Modul Ekstensi Operasional Gudang
+
+Selain alur masuk (*Inbound*) dan keberangkatan (*Manifest*), layanan ini awalnya telah dilengkapi dengan kerangka bisnis (*business logic skeletons*) dan pengujian unit (*unit tests*) lengkap untuk fitur operasional tingkat lanjut sejalan dengan standar **Clean Architecture**.
+
+Guna menjaga kebersihan direktori kerja dari kode yang belum aktif dipanggil (*dead code*), berkas-berkas pendukung untuk modul berikut **telah diarsipkan dengan aman di dalam riwayat commit Git** (*Git history* / commit sebelumnya) dan siap dipulihkan kembali saat skala bisnis pergudangan membutuhkan integrasi baru:
+
+1. **Jalur Penyortiran Otomatis (Sorting)**:
+   * **Arsip Berkas**: `sorting_service.go`, `sorting_repo.go`, `pg_sorting_repo.go`, dan `sorting_service_test.go`.
+   * **Tujuan**: Menangani pengelompokan barang ke dalam rak/jalur penyortiran tertentu secara dinamis berdasarkan kota tujuan atau tipe layanan ekspres untuk memudahkan operator logistik.
+
+2. **Pengelolaan Status Paket Tersentral (Status)**:
+   * **Arsip Berkas**: `status_service.go` dan `status_test.go`.
+   * **Tujuan**: Melakukan pembaharuan status logistik paket secara terpusat untuk menjaga konsistensi state mesin pelacakan.
+
+3. **Pelacakan Internal Rak Gudang (Tracking & Operational)**:
+   * **Arsip Berkas**: `tracking_service.go`, `tracking_test.go`, `operational_service.go`, dan `operational_test.go`.
+   * **Tujuan**: Melacak posisi koordinat dan rak fisik tempat paket diletakkan secara internal di dalam gedung Hub pergudangan guna meminimalkan risiko paket hilang atau terselip.
