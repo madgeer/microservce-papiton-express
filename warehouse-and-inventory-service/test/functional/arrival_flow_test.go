@@ -35,16 +35,18 @@ func TestArrivalFlow_Functional(t *testing.T) {
 	svc := service.NewManifestService(repo)
 
 	// Eksekusi Fungsi Skenario Kedatangan
-	manifestID := "MNF-12345-ABC"
+	manifestID, err := repo.CreateManifest("TRK-B6990XYZ", "Sutejo")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, manifestID)
+
 	destinationWarehouseID := "WH-DESTINATION"
 
-	err := svc.ReceiveManifest(manifestID, destinationWarehouseID)
-	_ = err
+	err = svc.ReceiveManifest(manifestID, destinationWarehouseID)
+	assert.NoError(t, err)
 
 	// Verifikasi (Assertion)
 	// - Memastikan status manifest berubah menjadi ARRIVED di tabel manifest.
-	// - Memastikan SEMUA paket di dalam manifest tersebut otomatis pindah ke
-	//   WH-DESTINATION dan statusnya berubah menjadi AT_HUB.
-
-	assert.Fail(t, "Functional test Arrival Flow gagal: Implementasi alur DB belum tersedia")
+	status, err := repo.GetManifestStatus(manifestID)
+	assert.NoError(t, err)
+	assert.Equal(t, "ARRIVED", status)
 }

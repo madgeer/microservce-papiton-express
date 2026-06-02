@@ -39,11 +39,16 @@ func TestInboundFlow_Functional(t *testing.T) {
 	resi := "BDO240430120000X1Y2"
 	warehouseID := "WH-UPI"
 	
-	err := svc.ProcessInbound(resi, warehouseID)
-	_ = err
+	// Masukkan dummy package terlebih dahulu agar query UPDATE berjalan dengan sukses
+	_, err := db.Exec("INSERT INTO inbound_packages (resi, warehouse_id, status) VALUES ($1, $2, 'CREATED')", resi, warehouseID)
+	assert.NoError(t, err)
+
+	err = svc.ProcessInbound(resi, warehouseID)
+	assert.NoError(t, err)
 
 	// Verifikasi (Assertion)
 	// Cek apakah data benar-benar tersimpan/berubah di database
-
-	assert.Fail(t, "Functional test gagal: Koneksi dan implementasi ke Database belum tersedia")
+	status, err := repo.GetItemByResi(resi)
+	assert.NoError(t, err)
+	assert.Equal(t, "AT_HUB", status)
 }

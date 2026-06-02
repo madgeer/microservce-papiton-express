@@ -1,5 +1,5 @@
 # Menggunakan base image Golang versi Alpine untuk meminimalkan ukuran image.
-FROM golang:1.21-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Menentukan direktori kerja utama di dalam container.
 WORKDIR /app

@@ -16,7 +16,7 @@ import (
 func TestCourierRepository_GetAvailableByZone_Functional(t *testing.T) {
 	// Dalam Red Phase murni, kita bisa asumsikan koneksi database sudah ada
 	// Jika gagal connect, test juga otomatis fail (yang mana valid di fase Red)
-	db, err := sql.Open("postgres", "postgres://user:password@localhost:5432/shipping_test_db?sslmode=disable")
+	db, err := sql.Open("postgres", "postgres://user:password@localhost:5433/shipping_test_db?sslmode=disable")
 	if err != nil {
 		t.Fatalf("Gagal inisialisasi database: %v", err)
 	}

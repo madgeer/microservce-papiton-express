@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
@@ -58,7 +59,32 @@ func SetupTestDB() *sql.DB {
 		return nil
 	}
 
-	fmt.Println("Berhasil terhubung ke Test Database PostgreSQL via Testcontainers!")
+	// Jalankan migrasi schema untuk membuat struktur tabel
+	var migrationSQL []byte
+	var readErr error
+	pathsToTry := []string{
+		"../../migrations/001_init_schema.up.sql",
+		"../migrations/001_init_schema.up.sql",
+		"migrations/001_init_schema.up.sql",
+	}
+	for _, p := range pathsToTry {
+		migrationSQL, readErr = os.ReadFile(p)
+		if readErr == nil {
+			break
+		}
+	}
+	if readErr != nil {
+		log.Printf("Gagal membaca file migrasi: %v", readErr)
+		return nil
+	}
+
+	_, err = db.Exec(string(migrationSQL))
+	if err != nil {
+		log.Printf("Gagal mengeksekusi file migrasi: %v", err)
+		return nil
+	}
+
+	fmt.Println("Berhasil terhubung ke Test Database PostgreSQL via Testcontainers dan menjalankan migrasi!")
 	DB = db
 	return db
 }

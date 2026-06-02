@@ -39,21 +39,26 @@ func TestManifestFlow_Functional(t *testing.T) {
 	driverName := "Sutejo"
 	resi := "BDO240430120000X1Y2"
 
+	// Masukkan dummy package terlebih dahulu karena ada foreign key constraint di tabel manifest_packages
+	_, err := db.Exec("INSERT INTO inbound_packages (resi, warehouse_id, status) VALUES ($1, 'WH-UPI', 'AT_HUB')", resi)
+	assert.NoError(t, err)
+
 	manifestID, err := svc.CreateNewManifest(truckID, driverName)
-	// Kita expect tidak ada panic, namun service masih mengembalikan string kosong / error nill sementara ini
-	// Jadi kita hanya memanggil fungsinya sesuai instruksi.
-	_ = err
+	assert.NoError(t, err)
+	assert.NotEmpty(t, manifestID)
 
 	err = svc.AddToManifest(manifestID, resi)
-	_ = err
+	assert.NoError(t, err)
 
 	err = svc.FinalizeManifest(manifestID)
-	_ = err
+	assert.NoError(t, err)
 
 	err = svc.DepartManifest(manifestID)
-	_ = err
+	assert.NoError(t, err)
 
 	// Verifikasi (Assertion)
 	// Cek apakah status truk di database berubah menjadi DEPARTED (Berangkat)
-	assert.Fail(t, "Functional test Manifest Flow gagal: Implementasi DB E2E belum tersedia")
+	status, err := repo.GetManifestStatus(manifestID)
+	assert.NoError(t, err)
+	assert.Equal(t, "DEPARTED", status)
 }
