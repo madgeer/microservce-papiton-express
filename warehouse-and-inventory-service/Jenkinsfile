@@ -1,7 +1,7 @@
 node {
     def registry = "madgeer"
     def gitBranch = env.BRANCH_NAME ?: 'develop'
-    def gitUrl = 'https://github.com/madgeer/papiton-express.git'
+    def gitUrl = 'https://github.com/madgeer/microservce-papiton-express.git'
 
     def service = [
         id: 'warehouse',

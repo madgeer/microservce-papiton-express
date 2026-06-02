@@ -44,7 +44,7 @@ def getChangedServices() {
 
 node {
     def gitBranch = env.BRANCH_NAME ?: 'develop'
-    def gitUrl = 'https://github.com/madgeer/papiton-express.git'
+    def gitUrl = 'https://github.com/madgeer/microservce-papiton-express.git'
 
     stage('Checkout Root') {
         echo "Checking out repository from branch ${gitBranch}..."
