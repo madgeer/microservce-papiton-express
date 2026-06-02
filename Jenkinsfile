@@ -43,7 +43,7 @@ def getChangedServices() {
 }
 
 node {
-    def gitBranch = env.BRANCH_NAME ?: 'kafka-integration'
+    def gitBranch = env.BRANCH_NAME ?: 'develop'
     def gitUrl = 'https://github.com/madgeer/papiton-express.git'
 
     stage('Checkout Root') {
