@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/repository"
+	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/model"
 )
 
 func TestGetHistory_DB_Failed(t *testing.T) {
@@ -27,13 +28,18 @@ func TestGetHistory_DB_Failed(t *testing.T) {
 	db := client.Database("tracking_db")
 
 	// Persiapan Service & Repository E2E
+	logRepo := repository.NewMongoLogEventRepo(db)
 	repo := repository.NewMongoTrackingRepo(db)
 	svc := NewTrackingService(repo)
 
-	// Eksekusi fungsi end-to-end
-	_, err = svc.GetHistory("RESI-123456")
-	_ = err // Abaikan error sementara karena dummy implementation
+	dummyLog := model.TrackingLog{ResiID: "RESI-123456", ActivityCode: "DELIVERED"}
+	err = logRepo.InsertLog(dummyLog)
+	assert.NoError(t, err)
 
-	// Verifikasi (Assertion)
-	assert.Fail(t, "Functional test GetHistory gagal: Implementasi MongoDB E2E belum tersedia secara utuh")
+	// Eksekusi fungsi end-to-end
+	history, err := svc.GetHistory("RESI-123456")
+	assert.NoError(t, err)
+	assert.NotNil(t, history)
+	assert.Equal(t, "RESI-123456", history.ResiID)
+	assert.NotEmpty(t, history.History)
 }
