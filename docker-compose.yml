@@ -223,6 +223,54 @@ services:
     networks:
       - papiton-net
 
+  # --- DATA WAREHOUSE (DWH) DATABASE ---
+  dwh-db:
+    image: postgres:15-alpine
+    container_name: dwh-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dwhpassword
+      POSTGRES_DB: papiton_dwh
+    ports:
+      - "5435:5432"
+    volumes:
+      - dwh_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d papiton_dwh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - papiton-net
+
+  # --- DATA ENGINEERING ETL SERVICE ---
+  etl-service:
+    build:
+      context: ./etl-pipeline
+      dockerfile: Dockerfile
+    container_name: etl-service
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - ORDER_DB_URL=postgresql://postgres:admin123@order-db:5432/papiton_order_tariff_service_db
+      - SHIPPING_DB_URL=postgresql://user:password@shipping-db:5432/shipping_test_db
+      - WAREHOUSE_DB_URL=postgresql://postgres:postgres@warehouse-db:5432/papiton_warehouse
+      - DWH_DB_URL=postgresql://postgres:dwhpassword@dwh-db:5432/papiton_dwh
+      - MONGO_URI=mongodb://tracking-mongo:27017
+      - MONGO_DB_NAME=tracking_db
+    depends_on:
+      kafka:
+        condition: service_started
+      order-db:
+        condition: service_healthy
+      shipping-db:
+        condition: service_healthy
+      warehouse-db:
+        condition: service_healthy
+      dwh-db:
+        condition: service_healthy
+    networks:
+      - papiton-net
+
 networks:
   papiton-net:
     driver: bridge
@@ -232,3 +280,4 @@ volumes:
   shipping_pgdata:
   order_pgdata:
   tracking_mongodata:
+  dwh_pgdata:
