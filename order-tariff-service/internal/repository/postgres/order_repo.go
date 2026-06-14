@@ -42,6 +42,7 @@ func (r *OrderRepositoryImpl) SaveOrder(req domain.OrderRequest, res domain.Orde
 		package_width DOUBLE PRECISION NOT NULL,
 		package_height DOUBLE PRECISION NOT NULL,
 		package_weight DOUBLE PRECISION NOT NULL,
+		volumetric_weight DOUBLE PRECISION NOT NULL DEFAULT 0.0,
 		
 		service_type VARCHAR(20) NOT NULL,
 		has_insurance BOOLEAN NOT NULL DEFAULT FALSE,
@@ -63,21 +64,21 @@ func (r *OrderRepositoryImpl) SaveOrder(req domain.OrderRequest, res domain.Orde
 	INSERT INTO orders (
 		awb, sender_name, sender_phone, sender_email, sender_address, sender_city, sender_lat, sender_lng,
 		recipient_name, recipient_phone, recipient_email, recipient_address, recipient_city, recipient_lat, recipient_lng,
-		package_length, package_width, package_height, package_weight,
+		package_length, package_width, package_height, package_weight, volumetric_weight,
 		service_type, has_insurance, has_packing,
 		tarif_total, distance, eta, status
 	) VALUES (
 		$1, $2, $3, $4, $5, $6, $7, $8,
 		$9, $10, $11, $12, $13, $14, $15,
-		$16, $17, $18, $19,
-		$20, $21, $22,
-		$23, $24, $25, $26
+		$16, $17, $18, $19, $20,
+		$21, $22, $23,
+		$24, $25, $26, $27
 	)`
 
 	_, err = r.db.Exec(queryInsert,
 		res.AWB, req.Sender.Name, req.Sender.Phone, req.Sender.Email, req.Sender.FullAddress, req.Sender.City, req.Sender.Coordinate.Latitude, req.Sender.Coordinate.Longitude,
 		req.Recipient.Name, req.Recipient.Phone, req.Recipient.Email, req.Recipient.FullAddress, req.Recipient.City, req.Recipient.Coordinate.Latitude, req.Recipient.Coordinate.Longitude,
-		req.Package.Length, req.Package.Width, req.Package.Height, req.Package.ActualWeight,
+		req.Package.Length, req.Package.Width, req.Package.Height, req.Package.ActualWeight, req.Package.VolumetricWeight,
 		req.ServiceType, req.HasInsurance, req.HasPacking,
 		res.TarifTotal, res.Distance, res.ETA, res.Status,
 	)

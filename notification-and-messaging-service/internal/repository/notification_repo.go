@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"time"
 
@@ -22,11 +23,28 @@ type NotificationLog struct {
 
 // PostgresNotificationRepository menyimpan log notifikasi ke PostgreSQL
 type PostgresNotificationRepository struct {
-	// db *sql.DB  // Uncomment dan isi saat implementasi nyata
+	db *sql.DB
 }
 
-func NewPostgresNotificationRepository( /* db *sql.DB */ ) *PostgresNotificationRepository {
-	return &PostgresNotificationRepository{}
+func NewPostgresNotificationRepository(db *sql.DB) *PostgresNotificationRepository {
+	// Pastikan tabel notification_logs dibuat
+	queryCreateTable := `
+	CREATE TABLE IF NOT EXISTS notification_logs (
+		id BIGSERIAL PRIMARY KEY,
+		user_id VARCHAR(50),
+		awb VARCHAR(50) NOT NULL,
+		channel VARCHAR(20) NOT NULL,
+		subject TEXT,
+		body TEXT,
+		success BOOLEAN NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);`
+	_, err := db.Exec(queryCreateTable)
+	if err != nil {
+		log.Printf("[Repository] Gagal membuat tabel notification_logs: %v", err)
+	}
+
+	return &PostgresNotificationRepository{db: db}
 }
 
 func (r *PostgresNotificationRepository) SaveLog(
@@ -34,16 +52,21 @@ func (r *PostgresNotificationRepository) SaveLog(
 	msg model.NotificationMessage,
 	success bool,
 ) error {
-	// TODO: Implementasi query INSERT ke tabel notification_logs
-	// Contoh query:
-	// INSERT INTO notification_logs (user_id, awb, channel, subject, body, success, created_at)
-	// VALUES ($1, $2, $3, $4, $5, $6, NOW())
+	queryInsert := `
+	INSERT INTO notification_logs (user_id, awb, channel, subject, body, success, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, NOW())`
+
+	_, err := r.db.ExecContext(ctx, queryInsert, msg.UserID, msg.AWB, string(msg.Channel), msg.Subject, msg.Body, success)
+	if err != nil {
+		log.Printf("[Repository] Gagal menyimpan log ke DB: %v", err)
+		return err
+	}
 
 	log.Printf(
 		"[Repository] Menyimpan log | UserID: %s | AWB: %s | Channel: %s | Sukses: %v",
 		msg.UserID, msg.AWB, msg.Channel, success,
 	)
-	return nil // Stub: selalu berhasil
+	return nil
 }
 
 // InMemoryNotificationRepository adalah implementasi in-memory untuk testing

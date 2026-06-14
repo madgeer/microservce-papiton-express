@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAPITON Express — Analytics Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    /* Theme configuration using modern SaaS palette */
+    :root {
+      --bg-main: #f8fafc;
+      --surface-color: #ffffff;
+      --border-light: #e2e8f0;
+      --text-dark: #0f172a;
+      --text-muted: #64748b;
+      --accent-primary: #2563eb;
+      --accent-success: #10b981;
+      --shadow-base: 0 1px 3px rgba(0,0,0,0.1);
+      --border-radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-dark);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* Top Navigation */
+    .topbar {
+      background-color: var(--surface-color);
+      border-bottom: 1px solid var(--border-light);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-base);
+    }
+
+    .brand-area { display: flex; align-items: center; gap: 1rem; }
+
+    .logo {
+      background: var(--accent-primary);
+      width: 40px; height: 40px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.2rem; color: #fff;
+    }
+
+    .brand-area h1 { font-size: 1.2rem; font-weight: 700; }
+    
+    .user-profile {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Main Container */
+    .dashboard-wrapper {
+      max-width: 1400px; margin: 0 auto; padding: 2rem;
+    }
+
+    /* KPI Grid Container */
+    .kpi-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-light);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-base);
+    }
+
+    .kpi-label {
+      font-size: 0.8rem; font-weight: 600;
+      color: var(--text-muted); text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+      font-size: 2rem; font-weight: 800;
+      color: var(--text-dark);
+    }
+
+    /* Layout for Charts */
+    .visual-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-panel {
+      background: var(--surface-color);
+      border: 1px solid var(--border-light);
+      border-radius: var(--border-radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-base);
+      min-height: 380px;
+      display: flex; flex-direction: column;
+    }
+
+    .panel-header { margin-bottom: 1rem; }
+    .panel-title { font-size: 1.1rem; font-weight: 700; }
+    .panel-desc { font-size: 0.85rem; color: var(--text-muted); }
+    
+    .canvas-container {
+      position: relative; flex-grow: 1; width: 100%; height: 280px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header class="topbar">
+    <div class="brand-area">
+      <div class="logo">PE</div>
+      <div>
+        <h1>PAPITON Express</h1>
+      </div>
+    </div>
+    <div class="user-profile">
+      <span>Warehouse Lead: Pratama</span>
+    </div>
+  </header>
+
+  <main class="dashboard-wrapper">
+    
+    <!-- Executive KPI Cards -->
+    <div class="kpi-container">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Delivery (L1)</div>
+        <div class="kpi-value" id="kpiTotalDelivery">12,540</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Monthly Revenue (L1)</div>
+        <div class="kpi-value" id="kpiRevenue">Rp 1.8M</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg. Delivery Time (L2)</div>
+        <div class="kpi-value" id="kpiAvgTime">2.3 Days</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Notification Success (L6)</div>
+        <div class="kpi-value" id="kpiSuccessRate">98.2%</div>
+      </div>
+    </div>
+
+    <!-- Analytics Charts Grid -->
+    <div class="visual-grid">
+      <!-- L1: Volume Distribution -->
+      <div class="chart-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Volume Pengiriman per Bulan (L1)</h2>
+          <p class="panel-desc">Total shipment trends aggregated by dim_date</p>
+        </div>
+        <div class="canvas-container"><canvas id="volumeTrendChart"></canvas></div>
+      </div>
+
+      <!-- L4: Service Type Distribution -->
+      <div class="chart-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Distribusi Service Type (L4)</h2>
+          <p class="panel-desc">Proportion of orders segmented by dim_service</p>
+        </div>
+        <div class="canvas-container"><canvas id="serviceDistChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="visual-grid">
+      <!-- L3: Warehouse Hub Performance -->
+      <div class="chart-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Volume Inbound per Gudang (L3)</h2>
+          <p class="panel-desc">Total processed packages tracked via dim_warehouse</p>
+        </div>
+        <div class="canvas-container"><canvas id="hubPerformanceChart"></canvas></div>
+      </div>
+
+      <!-- L6: Notification Channels -->
+      <div class="chart-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Efektivitas Channel Notifikasi (L6)</h2>
+          <p class="panel-desc">Delivery success rates analyzed from fact_notification</p>
+        </div>
+        <div class="canvas-container"><canvas id="notifChannelChart"></canvas></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // System configuration and global chart overrides
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = '#64748b';
+
+    // Mock dataset representing PostgreSQL DWH aggregations
+    const analyticalDataset = {
+      monthlyVolumes: [600, 850, 920, 1050, 1200, 1500, 1400, 1800, 2000, 2200, 2500, 2800],
+      monthLabels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+      serviceProportions: [55, 30, 15], 
+      warehouseLoads: [3200, 2800, 1900, 1450, 800],
+      hubLabels: ['WH-JKT', 'WH-BDO', 'WH-SUB', 'WH-SMG', 'WH-MDN'],
+      notificationStats: {
+        successRates: [99.2, 95.5],
+        failureRates: [0.8, 4.5]
+      }
+    };
+
+    // Initialize all visualizations on window load
+    window.addEventListener('load', () => {
+      renderVolumeChart();
+      renderServiceChart();
+      renderWarehouseChart();
+      renderNotificationChart();
+    });
+
+    // Render L1: Monthly Volume (Bar Chart)
+    function renderVolumeChart() {
+      const ctxVolume = document.getElementById('volumeTrendChart').getContext('2d');
+      new Chart(ctxVolume, {
+        type: 'bar',
+        data: {
+          labels: analyticalDataset.monthLabels,
+          datasets: [{
+            label: 'Total Shipment',
+            data: analyticalDataset.monthlyVolumes,
+            backgroundColor: '#2563eb',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: '#e2e8f0' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // Render L4: Service Type (Pie/Doughnut Chart)
+    function renderServiceChart() {
+      const ctxService = document.getElementById('serviceDistChart').getContext('2d');
+      new Chart(ctxService, {
+        type: 'pie',
+        data: {
+          labels: ['REGULAR', 'EXPRESS', 'CARGO'],
+          datasets: [{
+            data: analyticalDataset.serviceProportions,
+            backgroundColor: ['#2563eb', '#10b981', '#0f172a'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right' }
+          }
+        }
+      });
+    }
+
+    // Render L3: Hub Performance (Horizontal Bar Chart)
+    function renderWarehouseChart() {
+      const ctxWarehouse = document.getElementById('hubPerformanceChart').getContext('2d');
+      new Chart(ctxWarehouse, {
+        type: 'bar',
+        data: {
+          labels: analyticalDataset.hubLabels,
+          datasets: [{
+            label: 'Inbound Count',
+            data: analyticalDataset.warehouseLoads,
+            backgroundColor: '#64748b',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: '#e2e8f0' } },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // Render L6: Notification Effectiveness (Stacked Bar)
+    function renderNotificationChart() {
+      const ctxNotif = document.getElementById('notifChannelChart').getContext('2d');
+      new Chart(ctxNotif, {
+        type: 'bar',
+        data: {
+          labels: ['Email Channel', 'Push Notification'],
+          datasets: [
+            {
+              label: 'Success Rate (%)',
+              data: analyticalDataset.notificationStats.successRates,
+              backgroundColor: '#10b981'
+            },
+            {
+              label: 'Failure Rate (%)',
+              data: analyticalDataset.notificationStats.failureRates,
+              backgroundColor: '#ef4444'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, max: 100, grid: { color: '#e2e8f0' } }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

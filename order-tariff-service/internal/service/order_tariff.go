@@ -2,12 +2,20 @@ package service
 
 import (
 	"order-tariff-service/internal/domain"
+	"strings"
 )
 
 const (
 	PembagiVolumetrik = 6000
 	HargaPerKg        = 5000
 )
+
+var MacetZones = map[string]float64{
+	"kopo":        1.25, // Kopo macet parah: +25%
+	"rancaekek":   1.15, // Rancaekek banjir/macet: +15%
+	"dayeuhkolot": 1.20, // Dayeuhkolot banjir/macet: +20%
+	"cibaduyut":   1.15, // Cibaduyut macet: +15%
+}
 
 func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) float64 {
 	// 1. Hitung berat chargeable (mengambil max dari actual vs volumetric weight)
@@ -38,6 +46,16 @@ func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) f
 		tarif *= 1.5
 	case "CARGO":
 		tarif *= 0.8
+	}
+
+	// 5.1. Tambahkan dynamic pricing untuk area macet (Congestion Surcharge)
+	addrLower := strings.ToLower(req.Recipient.FullAddress)
+	cityLower := strings.ToLower(req.Recipient.City)
+	for zone, multiplier := range MacetZones {
+		if strings.Contains(addrLower, zone) || strings.Contains(cityLower, zone) {
+			tarif *= multiplier
+			break
+		}
 	}
 
 	// 6. Tambahkan asuransi dan packing jika dipilih

@@ -35,6 +35,9 @@ func (s *orderService) CreateOrder(req domain.OrderRequest) (domain.OrderRespons
 	//Menghitung Estimasi Waktu Sampai
 	eta := s.hitungETA(req.ServiceType, dist)
 
+	// Hitung dan simpan volumetric weight ke request payload
+	req.Package.VolumetricWeight = (req.Package.Length * req.Package.Width * req.Package.Height) / 6000.0
+
 	response := domain.OrderResponse{
 		AWB:        awb,
 		TarifTotal: tarifTotal,

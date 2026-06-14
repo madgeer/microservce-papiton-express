@@ -180,8 +180,16 @@ services:
     environment:
       - KAFKA_BROKER=kafka:9092
       - KAFKA_GROUP_ID=notification-service-group
+      - DB_HOST=shipping-db
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=shipping_test_db
     depends_on:
-      - kafka
+      kafka:
+        condition: service_started
+      shipping-db:
+        condition: service_healthy
     networks:
       - papiton-net
 
