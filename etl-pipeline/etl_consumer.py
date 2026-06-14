@@ -185,6 +185,31 @@ def get_or_create_date_key(conn, timestamp):
         })
     return date_key
 
+def parse_eta(eta_str, created_at):
+    if not eta_str or pd.isnull(eta_str):
+        return None
+    try:
+        # Try direct parsing
+        return pd.to_datetime(eta_str)
+    except Exception:
+        # Failed to parse, check for string patterns like "2 Hours", "3 Days"
+        try:
+            cleaned = str(eta_str).lower().strip()
+            parts = cleaned.split()
+            if len(parts) >= 2:
+                num = float(parts[0])
+                unit = parts[1]
+                if "hour" in unit:
+                    return created_at + datetime.timedelta(hours=num)
+                elif "day" in unit:
+                    return created_at + datetime.timedelta(days=num)
+                elif "min" in unit:
+                    return created_at + datetime.timedelta(minutes=num)
+        except Exception:
+            pass
+        # Fallback to created_at + 1 day
+        return created_at + datetime.timedelta(days=1)
+
 def handle_order_created(awb):
     print(f"Processing order.created event for AWB: {awb}")
     # Extract order details from order-db
@@ -239,6 +264,9 @@ def handle_order_created(awb):
             "insurance_fee": 5000 if order["has_insurance"] else 0
         })
 
+        # Get created_at as datetime
+        created_at = pd.to_datetime(order["created_at"])
+
         # Load dim_order
         conn.execute(text("""
             INSERT INTO dim_order (awb, sender_name, sender_city, recipient_city, eta, order_status, created_at)
@@ -251,9 +279,9 @@ def handle_order_created(awb):
             "sender_name": order["sender_name"],
             "sender_city": order["sender_city"],
             "recipient_city": order["recipient_city"],
-            "eta": pd.to_datetime(order["eta"]) if pd.notnull(order["eta"]) else None,
+            "eta": parse_eta(order["eta"], created_at),
             "order_status": order["status"],
-            "created_at": pd.to_datetime(order["created_at"])
+            "created_at": created_at
         })
 
         # Get Keys

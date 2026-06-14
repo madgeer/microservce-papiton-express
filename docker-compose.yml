@@ -15,7 +15,7 @@ services:
       - DB_PASSWORD=postgres
       - DB_NAME=papiton_warehouse
       - DB_PORT=5432
-      - KAFKA_BROKER=kafka:9092
+      - KAFKA_BROKER=kafka:29092
     depends_on:
       warehouse-db:
         condition: service_healthy
@@ -56,7 +56,7 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=shipping_test_db
       - MONGO_URI=mongodb://shipping-mongo:27017
-      - KAFKA_BROKER=kafka:9092
+      - KAFKA_BROKER=kafka:29092
     depends_on:
       shipping-db:
         condition: service_healthy
@@ -108,7 +108,7 @@ services:
       - DB_PORT=5432
       - REDIS_HOST=order-redis
       - REDIS_PORT=6379
-      - KAFKA_BROKER=kafka:9092
+      - KAFKA_BROKER=kafka:29092
     depends_on:
       order-db:
         condition: service_healthy
@@ -178,7 +178,7 @@ services:
       dockerfile: Dockerfile
     container_name: notification-app
     environment:
-      - KAFKA_BROKER=kafka:9092
+      - KAFKA_BROKER=kafka:29092
       - KAFKA_GROUP_ID=notification-service-group
       - DB_HOST=shipping-db
       - DB_PORT=5432
@@ -195,7 +195,7 @@ services:
 
   # --- EVENT BROKER INFRASTRUCTURE ---
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.0
+    image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -206,7 +206,7 @@ services:
       - papiton-net
 
   kafka:
-    image: confluentinc/cp-kafka:7.3.0
+    image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
     ports:
       - "9092:9092"
@@ -250,7 +250,7 @@ services:
       dockerfile: Dockerfile
     container_name: etl-service
     environment:
-      - KAFKA_BROKER=kafka:9092
+      - KAFKA_BROKER=kafka:29092
       - ORDER_DB_URL=postgresql://postgres:admin123@order-db:5432/papiton_order_tariff_service_db
       - SHIPPING_DB_URL=postgresql://user:password@shipping-db:5432/shipping_test_db
       - WAREHOUSE_DB_URL=postgresql://postgres:postgres@warehouse-db:5432/papiton_warehouse

@@ -17,4 +17,4 @@ COPY etl_consumer.py .
 COPY test_producer.py .
 
 # Run consumer
-CMD ["python", "etl_consumer.py"]
+CMD ["python", "-u", "etl_consumer.py"]

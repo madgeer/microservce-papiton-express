@@ -34,8 +34,48 @@ def test_pipeline():
     # 1. POPULATE SOURCE DATABASES
     print("Step 1: Populating mock data in operational databases...")
     
-    # 1.1 Warehouse DB
+    # 1.1 Warehouse DB DDL and Mock Data
     with warehouse_engine.begin() as conn:
+        # Create tables if they do not exist
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS warehouses (
+                warehouse_id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                city VARCHAR(50) NOT NULL,
+                region VARCHAR(50) NOT NULL,
+                warehouse_type VARCHAR(20) NOT NULL
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS inbound_packages (
+                resi VARCHAR(50) PRIMARY KEY,
+                warehouse_id VARCHAR(50) NOT NULL REFERENCES warehouses(warehouse_id),
+                status VARCHAR(50) NOT NULL,
+                is_express BOOLEAN DEFAULT FALSE,
+                special_handling TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS manifests (
+                manifest_id VARCHAR(50) PRIMARY KEY,
+                truck_id VARCHAR(50) NOT NULL,
+                driver_name VARCHAR(100) NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'CREATED',
+                origin_warehouse VARCHAR(50) REFERENCES warehouses(warehouse_id),
+                destination_warehouse VARCHAR(50) REFERENCES warehouses(warehouse_id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS manifest_packages (
+                manifest_id VARCHAR(50) REFERENCES manifests(manifest_id) ON DELETE CASCADE,
+                resi VARCHAR(50) REFERENCES inbound_packages(resi) ON DELETE CASCADE,
+                PRIMARY KEY (manifest_id, resi)
+            );
+        """))
         # Create warehouse if not exists
         conn.execute(text("""
             INSERT INTO warehouses (warehouse_id, name, city, region, warehouse_type)
@@ -51,6 +91,11 @@ def test_pipeline():
 
     # 1.2 Order DB
     with order_engine.begin() as conn:
+        # Patch the table if it already exists but lacks the new column
+        conn.execute(text("""
+            ALTER TABLE orders ADD COLUMN IF NOT EXISTS volumetric_weight DOUBLE PRECISION DEFAULT 0.0;
+        """))
+        
         conn.execute(text("""
             INSERT INTO orders (
                 awb, sender_name, sender_phone, sender_email, sender_address, sender_city, sender_lat, sender_lng,
