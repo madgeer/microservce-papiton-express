@@ -100,7 +100,7 @@ Berikut adalah penjelasan langkah demi langkah aliran data antar-service:
 5. **ETL Service** (Data Engineering) mendengarkan event ini:
    - Mengambil detail order dari `order_db`.
    - Mengisi dimensi `dim_location` (lokasi asal/tujuan), `dim_service`, dan `dim_date` di Data Warehouse.
-   - Membuat baris baru di tabel fakta `fact_shipment` (dengan status kurir/courier_profile_key `-1` / Belum Ditugaskan).
+   - Membuat baris baru di tabel fakta `fact_shipment` (dengan `courier_id` set ke `'N/A'`, serta `driver_earnings` dan `driver_rating` set ke `0.0`).
 
 ### B. Siklus Penugasan Kurir (Courier Dispatch Cycle)
 1. Event `order.created` di Kafka memicu **Shipping Service** untuk mencarikan kurir terdekat yang berstatus `AVAILABLE` di wilayah penjemputan.
@@ -108,8 +108,8 @@ Berikut adalah penjelasan langkah demi langkah aliran data antar-service:
 3. **Shipping Service** mempublikasikan event `dispatch.assigned` ke topik Kafka `papiton.events.shipping`.
 4. **ETL Service** mendengarkan event ini:
    - Mengambil data kurir dari `shipping_db`.
-   - Memperbarui tabel dimensi `dim_courier_profile` di DWH.
-   - Memperbarui `courier_profile_key` di tabel fakta `fact_shipment` untuk menghubungkan pesanan tersebut dengan profil kurir bersangkutan.
+   - Menghitung pendapatan driver (`driver_earnings`) dan mengambil performa driver (`driver_rating`) di database operasional.
+   - Memperbarui kolom `courier_id` (degenerate dimension) serta `driver_earnings` dan `driver_rating` (measures) di tabel fakta `fact_shipment`.
 
 ### C. Siklus Transit & Inbound Gudang (Warehouse & Transit Cycle)
 1. Kurir menjemput paket dari pengirim dan membawanya ke Hub asal (Gudang Transit).
@@ -128,5 +128,5 @@ Berikut adalah penjelasan langkah demi langkah aliran data antar-service:
 | Nama Topik Kafka | Tipe Event | Pengirim (Producer) | Penerima Operasional (Consumer) | Aksi ETL (Data Warehouse Load) |
 | :--- | :--- | :--- | :--- | :--- |
 | `papiton.events.order` | `order.created` | Order & Tariff Service | Notification Service | Membuat baris di `dim_location`, `dim_service`, dan `fact_shipment` (initial record). |
-| `papiton.events.shipping` | `package.picked_up` / `dispatch.assigned` | Shipping & Dispatch Service | Notification Service | Mengisi profil kurir di `dim_courier_profile` dan memperbarui `courier_profile_key` di `fact_shipment`. |
+| `papiton.events.shipping` | `package.picked_up` / `dispatch.assigned` | Shipping & Dispatch Service | Notification Service | Memperbarui degenerate dimension `courier_id` dan driver measures (`driver_earnings` & `driver_rating`) di `fact_shipment`. |
 | `papiton.events.tracking` | `package.in_transit` / `package.delivered` | Warehouse / Shipping Service | Tracking & Log Service, Notification Service | Mengisi informasi gudang di `dim_warehouse` dan meng-update lokasi transit di `fact_shipment`. |

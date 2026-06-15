@@ -915,11 +915,11 @@ Desain dimensi dan fakta di dalam Data Warehouse mendukung pembuatan berbagai la
 *   **Metrik**: `COUNT(shipment_key)` per `warehouse_key`, `AVG(package_weight)`.
 *   **Kueri DWH**: Perbandingan jumlah paket masuk (*inbound*) antar-wilayah operasional (`dim_warehouse.region`).
 
-#### 3. Analisis Kinerja Kurir dan Penugasan (Courier Performance & Dispatch Report)
-*   **Tujuan**: Mengukur efisiensi kerja kurir dan sebaran penugasan kurir di zona tertentu.
-*   **Dimensi Terkait**: `dim_courier_profile` (tipe kendaraan, zona), `dim_date`.
-*   **Metrik**: `COUNT(shipment_key)` (Jumlah Pengiriman), `AVG(distance_km)` (Jarak Tempuh) per profil.
-*   **Kueri DWH**: Menghitung rata-rata pengiriman yang berhasil diselesaikan per jenis kendaraan atau zona kurir.
+#### 3. Analisis Kinerja dan Pendapatan Driver (Driver Performance & Earnings Report)
+*   **Tujuan**: Mengukur total/rata-rata pendapatan driver serta rating performa mereka berdasarkan wilayah dan waktu secara agregat.
+*   **Dimensi Terkait**: `dim_date` (tahun, bulan), `dim_location` (wilayah asal pengiriman/operasional).
+*   **Metrik**: `AVG(driver_earnings)` (Rata-rata Pendapatan Driver), `AVG(driver_rating)` (Rata-rata Rating Performa Driver), `COUNT(DISTINCT courier_id)` (Jumlah Driver Aktif).
+*   **Kueri DWH**: Menghitung rata-rata pendapatan driver dan rating performa yang dikelompokkan berdasarkan bulan dan provinsi asal.
 
 #### 4. Laporan Keberhasilan Notifikasi (Notification Success Rate Report)
 *   **Tujuan**: Memastikan keandalan sistem komunikasi dengan konsumen dan memantau persentase notifikasi gagal.
@@ -940,5 +940,5 @@ Berikut adalah ringkasan rancangan visualisasi dashboard yang direkomendasikan u
 | **3** | Distribusi Tipe Layanan | **Donut Chart** | `dim_service.service_type` (Express/Regular/Cargo) | `COUNT(shipment_key)` | Manajer Produk |
 | **4** | Kepadatan Arus Paket per Gudang | **Bar Chart (Horizontal)** | `dim_warehouse.warehouse_name` | `COUNT(shipment_key)` | Manajer Operasional Gudang |
 | **5** | Volume Pengiriman Geografis | **Geo-Map Chart** | `dim_location.province` (Peta Provinsi Penerima) | `COUNT(shipment_key)` | Eksekutif & Marketing |
-| **6** | Produktivitas Pengiriman Kurir | **Table & Bar Chart** | `dim_courier_profile.vehicle_type` & `zone` | `COUNT(shipment_key)` | Manajer Armada (Fleet Manager) |
+| **6** | Kinerja & Pendapatan Driver | **Table & Line Chart** | `dim_location.province` (Wilayah) & `dim_date` | `AVG(driver_earnings)`, `AVG(driver_rating)`, `COUNT(DISTINCT courier_id)` | Manajer Armada & Operasional |
 | **7** | Analisis Keberhasilan Notifikasi | **Stacked Column Chart** | `fact_notification.channel` & `event_type` | `success` (True/False count) | Tim IT Support & DevOps |
