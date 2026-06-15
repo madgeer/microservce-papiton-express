@@ -555,11 +555,20 @@ def main():
                     )
             
             elif topic == "papiton.events.tracking":
-                # Typical payload from tracking: { "resi_id": "...", "location_code": "...", "activity_code": "...", "timestamp": "..." }
-                awb = payload.get("resi_id")
-                status = payload.get("activity_code", "IN_TRANSIT")
-                location_code = payload.get("location_code", "WH-BDG")
-                event_time = payload.get("timestamp", datetime.datetime.now().isoformat())
+                # Support both old and new tracking payload structures
+                awb = payload.get("resi_id") or payload.get("awb")
+                status = payload.get("activity_code") or payload.get("event_type") or "IN_TRANSIT"
+                if isinstance(status, str) and status.startswith("package."):
+                    status = status.replace("package.", "").upper()
+                
+                # Check for location in metadata or root
+                metadata = payload.get("metadata", {})
+                location_code = payload.get("location_code") or metadata.get("location") or "WH-BDG"
+                # Strip "Warehouse " prefix if present to keep code clean
+                if isinstance(location_code, str) and location_code.startswith("Warehouse "):
+                    location_code = location_code.replace("Warehouse ", "")
+                
+                event_time = payload.get("timestamp") or payload.get("occurred_at") or datetime.datetime.now().isoformat()
                 
                 if awb:
                     handle_tracking_event(awb, status, location_code, event_time)

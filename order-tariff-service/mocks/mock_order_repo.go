@@ -49,6 +49,51 @@ func (mr *MockOrderServiceMockRecorder) CreateOrder(req interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderService)(nil).CreateOrder), req)
 }
 
+// GetAllOrders mocks base method.
+func (m *MockOrderService) GetAllOrders() ([]domain.OrderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllOrders")
+	ret0, _ := ret[0].([]domain.OrderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllOrders indicates an expected call of GetAllOrders.
+func (mr *MockOrderServiceMockRecorder) GetAllOrders() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllOrders", reflect.TypeOf((*MockOrderService)(nil).GetAllOrders))
+}
+
+// GetOrderByAWB mocks base method.
+func (m *MockOrderService) GetOrderByAWB(awb string) (*domain.OrderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrderByAWB", awb)
+	ret0, _ := ret[0].(*domain.OrderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrderByAWB indicates an expected call of GetOrderByAWB.
+func (mr *MockOrderServiceMockRecorder) GetOrderByAWB(awb interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrderByAWB", reflect.TypeOf((*MockOrderService)(nil).GetOrderByAWB), awb)
+}
+
+// CalculateTariff mocks base method.
+func (m *MockOrderService) CalculateTariff(req domain.OrderRequest) (domain.OrderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CalculateTariff", req)
+	ret0, _ := ret[0].(domain.OrderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CalculateTariff indicates an expected call of CalculateTariff.
+func (mr *MockOrderServiceMockRecorder) CalculateTariff(req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateTariff", reflect.TypeOf((*MockOrderService)(nil).CalculateTariff), req)
+}
+
 // MockOrderRepository is a mock of OrderRepository interface.
 type MockOrderRepository struct {
 	ctrl     *gomock.Controller
@@ -129,4 +174,34 @@ func (m *MockOrderRepository) SaveOrder(req domain.OrderRequest, res domain.Orde
 func (mr *MockOrderRepositoryMockRecorder) SaveOrder(req, res interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveOrder", reflect.TypeOf((*MockOrderRepository)(nil).SaveOrder), req, res)
+}
+
+// FindAll mocks base method.
+func (m *MockOrderRepository) FindAll() ([]domain.OrderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAll")
+	ret0, _ := ret[0].([]domain.OrderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAll indicates an expected call of FindAll.
+func (mr *MockOrderRepositoryMockRecorder) FindAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockOrderRepository)(nil).FindAll))
+}
+
+// FindByAWB mocks base method.
+func (m *MockOrderRepository) FindByAWB(awb string) (*domain.OrderResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByAWB", awb)
+	ret0, _ := ret[0].(*domain.OrderResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByAWB indicates an expected call of FindByAWB.
+func (mr *MockOrderRepositoryMockRecorder) FindByAWB(awb interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAWB", reflect.TypeOf((*MockOrderRepository)(nil).FindByAWB), awb)
 }

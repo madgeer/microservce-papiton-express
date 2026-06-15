@@ -85,3 +85,17 @@ func (r *courierRepository) UpdateStatus(ctx context.Context, id string, status 
 	_, err := r.db.ExecContext(ctx, queryUpdate, string(status), id)
 	return err
 }
+
+func (r *courierRepository) Create(ctx context.Context, c *domain.Courier) error {
+	queryInsert := `
+	INSERT INTO couriers (id, name, phone_number, zone, status, vehicle_type)
+	VALUES ($1, $2, $3, $4, $5, $6)
+	ON CONFLICT (id) DO UPDATE SET
+		name = EXCLUDED.name,
+		phone_number = EXCLUDED.phone_number,
+		zone = EXCLUDED.zone,
+		status = EXCLUDED.status,
+		vehicle_type = EXCLUDED.vehicle_type;`
+	_, err := r.db.ExecContext(ctx, queryInsert, c.ID, c.Name, c.PhoneNumber, c.Zone, string(c.Status), c.VehicleType)
+	return err
+}

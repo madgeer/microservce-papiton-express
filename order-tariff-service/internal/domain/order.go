@@ -64,6 +64,9 @@ type OrderCreatedEvent struct {
 // INTERFACE
 type OrderService interface {
 	CreateOrder(req OrderRequest) (OrderResponse, error)
+	GetAllOrders() ([]OrderResponse, error)
+	GetOrderByAWB(awb string) (*OrderResponse, error)
+	CalculateTariff(req OrderRequest) (OrderResponse, error)
 }
 
 type OrderRepository interface {
@@ -71,6 +74,8 @@ type OrderRepository interface {
 	GetDistance(origin, dest Koordinat) (float64, error) //postgis
 	GetPricingFromCache(key string) (float64, error)     //redis
 	GetCityCode(cityName string) (string, error)         //mengambil kode kota untuk awb
+	FindAll() ([]OrderResponse, error)
+	FindByAWB(awb string) (*OrderResponse, error)
 }
 
 type OrderEventPublisher interface {

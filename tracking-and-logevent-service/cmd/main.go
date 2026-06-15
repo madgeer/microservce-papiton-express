@@ -61,9 +61,12 @@ func main() {
 	trackingSvc := service.NewTrackingService(trackingRepo)
 
 	trackingHandler := handler.NewTrackingAPIHandler(trackingSvc)
+	logEventAPIHandler := handler.NewLogEventAPIHandler(logEventSvc)
 
 	// 3. Mendaftarkan HTTP Route Handler
 	http.HandleFunc("/api/v1/tracking", trackingHandler.GetHistory)
+	http.HandleFunc("/api/v1/tracking/scan", logEventAPIHandler.ScanLog)
+	http.HandleFunc("/api/v1/tracking/logs", logEventAPIHandler.GetLogs)
 
 	// 4. Membaca port dinamis dari Environment Variable (menghindari port conflict)
 	port := os.Getenv("PORT")

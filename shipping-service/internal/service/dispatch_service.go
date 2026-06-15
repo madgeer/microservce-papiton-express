@@ -116,3 +116,37 @@ func (s *dispatchService) UpdateCourierGPS(ctx context.Context, courierID string
 	}
 	return s.locationRepo.UpdateLocation(ctx, loc)
 }
+
+func (s *dispatchService) GetCourier(ctx context.Context, id string) (*domain.Courier, error) {
+	if s.courierRepo == nil {
+		return nil, errors.New("courier repository not initialized")
+	}
+	return s.courierRepo.GetByID(ctx, id)
+}
+
+func (s *dispatchService) GetAvailableCouriers(ctx context.Context, zone string) ([]*domain.Courier, error) {
+	if s.courierRepo == nil {
+		return nil, errors.New("courier repository not initialized")
+	}
+	return s.courierRepo.GetAvailableByZone(ctx, zone)
+}
+
+func (s *dispatchService) RegisterCourier(ctx context.Context, courier *domain.Courier) error {
+	if s.courierRepo == nil {
+		return errors.New("courier repository not initialized")
+	}
+	if courier.ID == "" {
+		return errors.New("courier ID cannot be empty")
+	}
+	if courier.Status == "" {
+		courier.Status = domain.CourierStatusAvailable
+	}
+	return s.courierRepo.Create(ctx, courier)
+}
+
+func (s *dispatchService) UpdateCourierStatus(ctx context.Context, id string, status domain.CourierStatus) error {
+	if s.courierRepo == nil {
+		return errors.New("courier repository not initialized")
+	}
+	return s.courierRepo.UpdateStatus(ctx, id, status)
+}

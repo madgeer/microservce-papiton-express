@@ -32,6 +32,8 @@ func main() {
 
 	// 3. Mendaftarkan HTTP Route Handler
 	http.HandleFunc("/api/v1/orders", orderHandler.HandleCreateOrder)
+	http.HandleFunc("/api/v1/orders/get", orderHandler.HandleGetOrders)
+	http.HandleFunc("/api/v1/tariff/calculate", orderHandler.HandleCalculateTariff)
 
 	// 4. Membaca port dinamis dari Environment Variable (menghindari port conflict)
 	port := os.Getenv("PORT")

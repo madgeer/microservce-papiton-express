@@ -133,3 +133,36 @@ func (r *OrderRepositoryImpl) GetCityCode(cityName string) (string, error) {
 	}
 	return "BDG", nil
 }
+
+func (r *OrderRepositoryImpl) FindAll() ([]domain.OrderResponse, error) {
+	querySelect := `SELECT awb, tarif_total, distance, eta, status, created_at FROM orders ORDER BY created_at DESC`
+	rows, err := r.db.Query(querySelect)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []domain.OrderResponse
+	for rows.Next() {
+		var o domain.OrderResponse
+		err := rows.Scan(&o.AWB, &o.TarifTotal, &o.Distance, &o.ETA, &o.Status, &o.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, o)
+	}
+	return list, nil
+}
+
+func (r *OrderRepositoryImpl) FindByAWB(awb string) (*domain.OrderResponse, error) {
+	querySelect := `SELECT awb, tarif_total, distance, eta, status, created_at FROM orders WHERE awb = $1`
+	var o domain.OrderResponse
+	err := r.db.QueryRow(querySelect, awb).Scan(&o.AWB, &o.TarifTotal, &o.Distance, &o.ETA, &o.Status, &o.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &o, nil
+}

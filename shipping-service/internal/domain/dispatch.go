@@ -41,6 +41,10 @@ type DispatchService interface {
 	AutoDispatchPickUp(ctx context.Context, orderID string, pickupZone string) (*Dispatch, error)
 	ConfirmPickUp(ctx context.Context, dispatchID string) error
 	UpdateCourierGPS(ctx context.Context, courierID string, lat, long float64) error
+	GetCourier(ctx context.Context, id string) (*Courier, error)
+	GetAvailableCouriers(ctx context.Context, zone string) ([]*Courier, error)
+	RegisterCourier(ctx context.Context, courier *Courier) error
+	UpdateCourierStatus(ctx context.Context, id string, status CourierStatus) error
 }
 
 type DispatchEventPublisher interface {

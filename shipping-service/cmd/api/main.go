@@ -109,6 +109,11 @@ func main() {
 
 	// 5. Daftarkan rute HTTP
 	http.HandleFunc("/dispatch", dispatchHandler.AutoDispatch)
+	http.HandleFunc("/api/v1/couriers/register", dispatchHandler.RegisterCourier)
+	http.HandleFunc("/api/v1/couriers", dispatchHandler.GetCouriers)
+	http.HandleFunc("/api/v1/couriers/status", dispatchHandler.UpdateCourierStatus)
+	http.HandleFunc("/api/v1/couriers/location", dispatchHandler.UpdateCourierLocation)
+	http.HandleFunc("/api/v1/dispatches/confirm", dispatchHandler.ConfirmPickUp)
 
 	// 6. Jalankan Server HTTP
 	port := getEnv("PORT", "8080")

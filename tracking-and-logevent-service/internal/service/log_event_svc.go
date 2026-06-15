@@ -20,3 +20,7 @@ func (s *LogEventService) ProcessLog(log model.TrackingLog) error {
 	}
 	return s.repo.InsertLog(log)
 }
+
+func (s *LogEventService) GetAllLogs() ([]model.TrackingLog, error) {
+	return s.repo.FindAllLogs()
+}

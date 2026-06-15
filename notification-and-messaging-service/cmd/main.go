@@ -5,14 +5,17 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "github.com/lib/pq"
 
 	"papiton/notification-service/internal/consumer"
 	"papiton/notification-service/internal/dispatcher"
+	"papiton/notification-service/internal/handler"
 	"papiton/notification-service/internal/processor"
 	"papiton/notification-service/internal/provider"
 	"papiton/notification-service/internal/repository"
@@ -78,10 +81,38 @@ func main() {
 		cancel()
 	}()
 
-	log.Println("PAPITON Express - Notification Service dimulai")
-	if err := kafkaConsumer.Start(ctx); err != nil {
-		log.Fatalf("Kafka consumer error: %v", err)
+	// Jalankan Kafka Consumer di latar belakang
+	go func() {
+		log.Println("PAPITON Express - Notification Service (Kafka Consumer) dimulai")
+		if err := kafkaConsumer.Start(ctx); err != nil {
+			log.Printf("Kafka consumer error: %v", err)
+		}
+	}()
+
+	// Inisialisasi API Handler & Server HTTP
+	notificationHandler := handler.NewNotificationAPIHandler(disp, repo)
+	http.HandleFunc("/api/v1/notifications/logs", notificationHandler.GetLogs)
+	http.HandleFunc("/api/v1/notifications/send-direct", notificationHandler.SendDirect)
+
+	port := getEnv("PORT", "8080")
+	srv := &http.Server{
+		Addr: ":" + port,
 	}
+
+	go func() {
+		log.Printf("HTTP Server berjalan di http://localhost:%s\n", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v\n", err)
+		}
+	}()
+
+	<-ctx.Done()
+
+	// Graceful shutdown HTTP Server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	_ = srv.Shutdown(shutdownCtx)
+	log.Println("Layanan dihentikan sepenuhnya.")
 }
 
 func getEnv(key, defaultVal string) string {

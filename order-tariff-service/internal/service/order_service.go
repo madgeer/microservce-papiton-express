@@ -66,3 +66,30 @@ func (s *orderService) CreateOrder(req domain.OrderRequest) (domain.OrderRespons
 
 	return response, nil
 }
+
+func (s *orderService) GetAllOrders() ([]domain.OrderResponse, error) {
+	return s.repo.FindAll()
+}
+
+func (s *orderService) GetOrderByAWB(awb string) (*domain.OrderResponse, error) {
+	return s.repo.FindByAWB(awb)
+}
+
+func (s *orderService) CalculateTariff(req domain.OrderRequest) (domain.OrderResponse, error) {
+	dist, err := s.repo.GetDistance(req.Sender.Coordinate, req.Recipient.Coordinate)
+	if err != nil {
+		dist = 0.0
+	}
+
+	tarifTotal := s.hitungTotalTarif(req, dist)
+	eta := s.hitungETA(req.ServiceType, dist)
+
+	return domain.OrderResponse{
+		AWB:        "CALC-ONLY",
+		TarifTotal: tarifTotal,
+		Distance:   dist,
+		ETA:        eta,
+		Status:     "Calculated",
+		CreatedAt:  time.Now(),
+	}, nil
+}

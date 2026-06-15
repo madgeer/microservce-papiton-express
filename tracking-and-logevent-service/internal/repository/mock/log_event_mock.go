@@ -47,3 +47,18 @@ func (mr *MockLogEventRepositoryMockRecorder) InsertLog(log interface{}) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertLog", reflect.TypeOf((*MockLogEventRepository)(nil).InsertLog), log)
 }
+
+// FindAllLogs mocks base method.
+func (m *MockLogEventRepository) FindAllLogs() ([]model.TrackingLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAllLogs")
+	ret0, _ := ret[0].([]model.TrackingLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAllLogs indicates an expected call of FindAllLogs.
+func (mr *MockLogEventRepositoryMockRecorder) FindAllLogs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllLogs", reflect.TypeOf((*MockLogEventRepository)(nil).FindAllLogs))
+}

@@ -133,10 +133,18 @@ def test_pipeline():
     # 2.1 Order Created Event
     print("\nStep 2: Publishing papiton.events.order (order.created)...")
     order_event = {
+        "event_id": f"EVT-ORD-{test_awb}",
+        "event_type": "order.created",
+        "user_id": "customer@test.com",
         "awb": test_awb,
+        "occurred_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "metadata": {
+            "status": "CREATED"
+        },
+        # Backward compatibility
         "email": "customer@test.com",
         "status": "CREATED",
-        "timestamp": datetime.datetime.now().isoformat()
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     }
     producer.send("papiton.events.order", order_event)
     producer.flush()
@@ -149,7 +157,7 @@ def test_pipeline():
         "event_type": "package.picked_up",
         "user_id": "customer@test.com",
         "awb": test_awb,
-        "occurred_at": datetime.datetime.now().isoformat(),
+        "occurred_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "metadata": {
             "courier_id": "C-TEST-01",
             "status": "dispatch.assigned",
@@ -163,10 +171,20 @@ def test_pipeline():
     # 2.3 Tracking Inbound/Transit Event
     print("Step 4: Publishing papiton.events.tracking (package.in_transit)...")
     tracking_event = {
+        "event_id": f"EVT-INB-{test_awb}",
+        "event_type": "package.in_transit",
+        "user_id": "customer@test.com",
+        "awb": test_awb,
+        "occurred_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "metadata": {
+            "location": "Warehouse WH-UPI",
+            "status": "inventory.inbound"
+        },
+        # Backward compatibility
         "resi_id": test_awb,
         "location_code": "WH-UPI",
         "activity_code": "IN_TRANSIT",
-        "timestamp": datetime.datetime.now().isoformat()
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     }
     producer.send("papiton.events.tracking", tracking_event)
     producer.flush()

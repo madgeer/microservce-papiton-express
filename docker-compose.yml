@@ -177,6 +177,8 @@ services:
       context: ./notification-and-messaging-service
       dockerfile: Dockerfile
     container_name: notification-app
+    ports:
+      - "8084:8080" # Diakses via port 8084 di localhost
     environment:
       - KAFKA_BROKER=kafka:29092
       - KAFKA_GROUP_ID=notification-service-group

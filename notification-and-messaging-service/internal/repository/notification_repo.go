@@ -69,6 +69,29 @@ func (r *PostgresNotificationRepository) SaveLog(
 	return nil
 }
 
+func (r *PostgresNotificationRepository) GetLogs(ctx context.Context) ([]NotificationLog, error) {
+	querySelect := `SELECT id, user_id, awb, channel, subject, body, success, created_at FROM notification_logs ORDER BY created_at DESC LIMIT 100`
+	rows, err := r.db.QueryContext(ctx, querySelect)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []NotificationLog
+	for rows.Next() {
+		var l NotificationLog
+		err := rows.Scan(&l.ID, &l.UserID, &l.AWB, &l.Channel, &l.Subject, &l.Body, &l.Success, &l.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, l)
+	}
+	if list == nil {
+		list = []NotificationLog{}
+	}
+	return list, nil
+}
+
 // InMemoryNotificationRepository adalah implementasi in-memory untuk testing
 // Berguna untuk functional test yang tidak memerlukan database nyata
 type InMemoryNotificationRepository struct {
@@ -94,4 +117,8 @@ func (r *InMemoryNotificationRepository) SaveLog(
 		CreatedAt: time.Now(),
 	})
 	return nil
+}
+
+func (r *InMemoryNotificationRepository) GetLogs(ctx context.Context) ([]NotificationLog, error) {
+	return r.Logs, nil
 }

@@ -34,4 +34,5 @@ type CourierRepository interface {
 	// GetAvailableByZone mencari armada yang tersedia berdasarkan zona.
 	GetAvailableByZone(ctx context.Context, zone string) ([]*Courier, error)
 	UpdateStatus(ctx context.Context, id string, status CourierStatus) error
+	Create(ctx context.Context, courier *Courier) error
 }
