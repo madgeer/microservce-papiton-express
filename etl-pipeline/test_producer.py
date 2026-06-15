@@ -91,9 +91,37 @@ def test_pipeline():
 
     # 1.2 Order DB
     with order_engine.begin() as conn:
-        # Patch the table if it already exists but lacks the new column
         conn.execute(text("""
-            ALTER TABLE orders ADD COLUMN IF NOT EXISTS volumetric_weight DOUBLE PRECISION DEFAULT 0.0;
+            CREATE TABLE IF NOT EXISTS orders (
+                awb VARCHAR(50) PRIMARY KEY,
+                sender_name VARCHAR(100) NOT NULL,
+                sender_phone VARCHAR(50) NOT NULL,
+                sender_email VARCHAR(100) NOT NULL,
+                sender_address TEXT NOT NULL,
+                sender_city VARCHAR(50) NOT NULL,
+                sender_lat DOUBLE PRECISION NOT NULL,
+                sender_lng DOUBLE PRECISION NOT NULL,
+                recipient_name VARCHAR(100) NOT NULL,
+                recipient_phone VARCHAR(50) NOT NULL,
+                recipient_email VARCHAR(100) NOT NULL,
+                recipient_address TEXT NOT NULL,
+                recipient_city VARCHAR(50) NOT NULL,
+                recipient_lat DOUBLE PRECISION NOT NULL,
+                recipient_lng DOUBLE PRECISION NOT NULL,
+                package_length DOUBLE PRECISION NOT NULL,
+                package_width DOUBLE PRECISION NOT NULL,
+                package_height DOUBLE PRECISION NOT NULL,
+                package_weight DOUBLE PRECISION NOT NULL,
+                volumetric_weight DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                service_type VARCHAR(50) NOT NULL,
+                has_insurance BOOLEAN NOT NULL,
+                has_packing BOOLEAN NOT NULL,
+                tarif_total DOUBLE PRECISION NOT NULL,
+                distance DOUBLE PRECISION NOT NULL,
+                eta VARCHAR(50) NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """))
         
         conn.execute(text("""
@@ -114,6 +142,25 @@ def test_pipeline():
 
     # 1.3 Shipping DB
     with shipping_engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS couriers (
+                id VARCHAR(50) PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                phone_number VARCHAR(50) NOT NULL,
+                zone VARCHAR(50) NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                vehicle_type VARCHAR(50) NOT NULL
+            );
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS dispatches (
+                id VARCHAR(50) PRIMARY KEY,
+                order_id VARCHAR(50) NOT NULL,
+                courier_id VARCHAR(50) NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                route_instruction TEXT NOT NULL
+            );
+        """))
         # Insert Courier
         conn.execute(text("""
             INSERT INTO couriers (id, name, phone_number, zone, status, vehicle_type)

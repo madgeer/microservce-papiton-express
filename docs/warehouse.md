@@ -17,15 +17,14 @@
 
 ## 🔄 Ringkasan Perubahan Utama (Revisi)
 
-Dokumen ini merupakan revisi dari `TUBES_3.pdf` berdasarkan hasil review. Perubahan difokuskan pada tiga kategori: (1) Error konseptual star schema, (2) Aturan ETL yang tidak valid/spesifik, dan (3) Inkonsistensi mapping sumber data.
+Dokumen ini merupakan revisi dari rancangan DWH awal berdasarkan masukan dosen/reviewer. Perubahan difokuskan pada perbaikan konseptual star schema agar sesuai dengan prinsip data warehouse (agregatif, bukan menyimpan data transaksional individu sebagai dimensi):
 
-### Perbaikan Utama
-
-* Penghapusan kolom redundan (`is_express`) dari `fact_shipment`.
-* Pembuatan dimensi baru `dim_notification_type` untuk mengatasi kolom non-measure di tabel fakta.
-* Pengubahan Primary Key `dim_date` menjadi format `INT YYYYMMDD`.
-* Penambahan *sentinel row* pada `dim_courier` untuk menangani *NULL values*.
-* Penambahan aturan transformasi ETL untuk kalkulasi `volumetric_weight` dan `notification_count`.
+### Perbaikan Utama (Revisi Kedua)
+*   **Pembersihan Dimensi Individual (User/Kurir/Transaksi)**: Menghapus `dim_order` dan `dim_courier`. Entitas individual (seperti nama kurir, ID kurir, nama pengirim) tidak dijadikan dimensi karena DWH berfokus pada analisis data agregat.
+*   **Penerapan Degenerate Dimension**: Kolom `awb` (kode resi transaksi) dan `order_status` kini diletakkan langsung di dalam tabel fakta `fact_shipment` sebagai *degenerate dimension*.
+*   **Dimensi Lokasi Terstruktur (`dim_location`)**: Mengganti kolom teks alamat bebas/kota string dengan dimensi wilayah hierarkis terstruktur (`province`, `city_kabupaten`, `district_kecamatan`, `subdistrict_kelurahan`) untuk menghindari free-text string yang bukan merupakan dimensi standar. Tabel fakta menggunakan role-playing dimension (`origin_location_key` dan `destination_location_key`).
+*   **Dimensi Profil Kurir (`dim_courier_profile`)**: Menggantikan `dim_courier` individual dengan dimensi profil agregat (`zone`, `vehicle_type`).
+*   **Eksplisitasi Rumus Agregasi Measure**: Menjelaskan secara rinci tipe agregasi (`SUM`, `COUNT`, `AVG`) untuk setiap metrik/measure yang disajikan pada laporan analitik.
 
 ---
 
@@ -39,47 +38,44 @@ Proses identifikasi dilakukan dengan menganalisis metrik bisnis utama (Fakta) da
 erDiagram
     fact_shipment {
         BIGSERIAL shipment_key PK
+        VARCHAR awb "Degenerate Dimension"
         INT date_key FK
-        INT order_key FK
-        INT courier_key FK
+        INT origin_location_key FK "Role-playing: Origin"
+        INT destination_location_key FK "Role-playing: Destination"
+        INT courier_profile_key FK
         INT warehouse_key FK
         INT service_key FK
-        NUMERIC tarif_total
-        NUMERIC distance_km
-        NUMERIC package_weight
-        NUMERIC volumetric_weight
-        INT notification_count
+        VARCHAR order_status "Degenerate Dimension"
+        NUMERIC tarif_total "Measure (Additive)"
+        NUMERIC distance_km "Measure (Additive)"
+        NUMERIC package_weight "Measure (Additive)"
+        NUMERIC volumetric_weight "Measure (Additive)"
+        INT notification_count "Measure (Additive)"
         TIMESTAMP etl_loaded_at
     }
 
     fact_notification {
         BIGSERIAL notif_key PK
-        VARCHAR awb
+        VARCHAR awb "Degenerate Dimension"
         INT date_key FK
         BIGINT notif_type_key FK
-        BOOLEAN success
+        BOOLEAN success "Measure (Boolean-to-Int)"
         TIMESTAMP notif_at
         TIMESTAMP etl_loaded_at
     }
 
-    dim_order {
-        BIGSERIAL order_key PK
-        VARCHAR awb
-        VARCHAR sender_name
-        VARCHAR sender_city
-        VARCHAR recipient_city
-        TIMESTAMP eta
-        VARCHAR order_status
-        TIMESTAMP created_at
+    dim_location {
+        INT location_key PK
+        VARCHAR province
+        VARCHAR city_kabupaten
+        VARCHAR district_kecamatan
+        VARCHAR subdistrict_kelurahan
     }
 
-    dim_courier {
-        BIGSERIAL courier_key PK
-        VARCHAR courier_id
-        VARCHAR courier_name
+    dim_courier_profile {
+        INT courier_profile_key PK
         VARCHAR zone
         VARCHAR vehicle_type
-        VARCHAR dispatch_status
     }
 
     dim_date {
@@ -118,8 +114,9 @@ erDiagram
     }
 
     dim_date ||--o{ fact_shipment : "date_key"
-    dim_order ||--o{ fact_shipment : "order_key"
-    dim_courier ||--o{ fact_shipment : "courier_key"
+    dim_location ||--o{ fact_shipment : "origin_location_key"
+    dim_location ||--o{ fact_shipment : "destination_location_key"
+    dim_courier_profile ||--o{ fact_shipment : "courier_profile_key"
     dim_warehouse ||--o{ fact_shipment : "warehouse_key"
     dim_service ||--o{ fact_shipment : "service_key"
 
@@ -130,95 +127,64 @@ erDiagram
 ## Definisi Tabel Utama
 
 ### fact_shipment
-
-Tabel fakta utama dengan grain satu baris per transaksi pengiriman (AWB).
+Tabel fakta transaksi pengiriman. Butiran data (*grain*) adalah satu baris per resi pengiriman (AWB). Memiliki degenerate dimensions (`awb`, `order_status`) dan referensi ke dimensi geografis pengirim/penerima.
+*   **Measures**:
+    *   `tarif_total` (Bisa di-`SUM` untuk total omzet atau di-`AVG` untuk rata-rata tarif)
+    *   `distance_km` (Bisa di-`SUM` untuk total jarak tempuh atau di-`AVG` untuk rata-rata jarak)
+    *   `package_weight` (Bisa di-`AVG` untuk rata-rata berat paket)
+    *   `volumetric_weight` (Bisa di-`AVG` untuk rata-rata berat volumetrik)
+    *   `notification_count` (Bisa di-`SUM` untuk total notifikasi yang dikirimkan)
+    *   `COUNT(shipment_key)` (Agregasi dinamis untuk menghitung jumlah total paket/transaksi)
 
 ### fact_notification
+Tabel fakta untuk merekam pengiriman notifikasi dari sistem.
+*   **Measures**:
+    *   `success` (Bisa di-`SUM(CASE WHEN success THEN 1 ELSE 0 END)` untuk total notifikasi sukses, atau di-`AVG(CASE WHEN success THEN 1 ELSE 0 END)*100` untuk rasio persentase kesuksesan notifikasi).
+    *   `COUNT(notif_key)` (Agregasi dinamis untuk menghitung jumlah total notifikasi yang dikirimkan)
 
-Tabel sub-fakta yang berisi status keberhasilan notifikasi.
+### dim_location
+Dimensi geografi terstruktur. Tidak ada alamat bebas (string acak), melainkan terbagi atas struktur administratif resmi: Provinsi (`province`), Kabupaten/Kota (`city_kabupaten`), Kecamatan (`district_kecamatan`), dan Kelurahan (`subdistrict_kelurahan`). Digunakan secara *role-playing* sebagai lokasi asal dan tujuan.
+
+### dim_courier_profile
+Dimensi profil/kelompok kurir. Tidak menyimpan nama atau ID kurir secara individual (yang merupakan data operasional OLTP), melainkan mengelompokkan data berdasarkan karakteristik agregat kurir yaitu zona wilayah (`zone`) dan jenis kendaraan (`vehicle_type`). Memiliki *sentinel row* `courier_profile_key = -1` (Zone: N/A, Vehicle: N/A) untuk status pengiriman "Belum Ditugaskan".
 
 ### dim_date
+Dimensi waktu dengan format Primary Key `YYYYMMDD` untuk mempermudah kueri analisis berbasis rentang tanggal.
 
-Dimensi waktu dengan PK format `YYYYMMDD` untuk mendukung efisiensi *range query*.
-
-### dim_courier
-
-Dilengkapi *sentinel row* (`courier_key = -1`) untuk status pengiriman "Belum Ditugaskan".
+### dim_warehouse
+Dimensi lokasi gudang hub/transit. Menyimpan properti administratif gudang (`warehouse_id`, `warehouse_name`, `city`, `region`, `warehouse_type`).
 
 ### dim_notification_type
-
-Menampung atribut `channel` (email, push notification, dll.) dan `event_type` (ORDER_CREATED, IN_TRANSIT, DELIVERED, dll.).
+Dimensi tipe dan saluran notifikasi, mengelompokkan berdasarkan `channel` (email, push) dan `event_type` (order.created, package.picked_up, dll).
 
 ---
 
 # 2. ⚙️ Proses ETL (Extraction, Transformation, Load)
 
-Data diekstraksi dari lima database operasional dengan arsitektur *database-per-service* dan diproses secara batch setiap hari pukul 01.00 WIB.
+Data diekstraksi secara real-time melalui Kafka Event Consumer dan disimpan ke dalam PostgreSQL Data Warehouse.
 
 ## Matriks Sumber Data
-
-| Service               | Sumber Data                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------- |
-| Order & Tariff        | Tabel `orders` dari `papiton_order_tariff_service_db`                                   |
-| Shipping & Dispatch   | Tabel `couriers` dan `dispatches` dari `shipping_test_db`                               |
-| Warehouse & Inventory | Tabel `inbound_packages`, `manifests`, dan `manifest_packages` dari `papiton_warehouse` |
-| Tracking & Log        | Koleksi `tracking_logs` dari `tracking_db` (MongoDB)                                    |
-| Notification          | Tabel `notification_logs`                                                               |
+*   **Order DB**: Tabel `orders` untuk memuat data pengiriman dasar, tarif, berat, dan dimensi geografis awal.
+*   **Shipping DB**: Tabel `couriers` dan `dispatches` untuk memuat data penugasan kurir dan memetakan profil kurir.
+*   **Warehouse DB**: Tabel `warehouses` dan `inbound_packages` untuk memetakan transit gudang.
+*   **Kafka Events**: Sebagai trigger real-time untuk pemrosesan ETL.
 
 ## Aturan Transformasi (T1-T10)
-
-### T1 - Konsolidasi Data
-
-Menggabungkan seluruh data staging berdasarkan AWB menggunakan `LEFT JOIN`.
-
-### T2 - Perhitungan Berat Volumetrik
-
-Menghitung `volumetric_weight` menggunakan rumus:
-
-```sql
-(length_cm * width_cm * height_cm) / 6000.0
-```
-
-### T5 - Agregasi Notifikasi
-
-Menghitung jumlah notifikasi sukses (`notification_count`) untuk setiap AWB.
-
-### T8 - Penanganan Nilai NULL
-
-Apabila kurir belum ditugaskan, data akan diarahkan ke *sentinel row* pada `dim_courier`.
-
-## Fase Load
-
-1. Memuat seluruh tabel dimensi menggunakan mekanisme UPSERT.
-2. Memuat tabel `fact_shipment` menggunakan idempotency check.
-3. Menjalankan Data Integrity Check untuk validasi hasil ETL.
+*   **T1 - Konsolidasi Data**: Menggabungkan data order dengan data penugasan kurir dan inbound gudang berdasarkan AWB.
+*   **T2 - Normalisasi Wilayah**: Memetakan teks kota (e.g. "Bandung") ke dalam baris dimensi terstruktur `dim_location` (Provinsi, Kabupaten, Kecamatan, Kelurahan) menggunakan standarisasi kamus wilayah.
+*   **T3 - Perhitungan Berat Volumetrik**: `(length_cm * width_cm * height_cm) / 6000.0`
+*   **T4 - Penanganan NULL**: Mengarahkan penugasan kurir kosong ke sentinel row `courier_profile_key = -1`.
 
 ---
 
-# 3. 📊 Laporan dan Analitik
+# 3. 📊 Laporan dan Analitik (OLAP Metrics)
 
-Data Warehouse dirancang untuk mendukung dashboard analitik berbasis OLAP.
+Berikut adalah definisi matrik laporan operasional yang dibangun di atas rancangan Star Schema ini:
 
-## L1 - Volume & Revenue Pengiriman per Periode
-
-Mengukur volume transaksi dan omzet pengiriman berdasarkan periode waktu.
-
-## L2 - Performa Kurir per Zona
-
-Mengukur produktivitas kurir berdasarkan wilayah operasional.
-
-## L3 - Performa Gudang (Hub)
-
-Mengidentifikasi bottleneck logistik pada setiap fasilitas distribusi.
-
-## L4 - Distribusi Jenis Layanan
-
-Menganalisis pola penggunaan layanan oleh pelanggan.
-
-## L5 - Rute Pengiriman Populer
-
-Mengidentifikasi jalur pengiriman dengan volume tertinggi antar kota.
-
-## L6 - Efektivitas Notifikasi
-
-Mengukur tingkat keberhasilan notifikasi berdasarkan kanal komunikasi menggunakan `fact_notification`.
+| ID Laporan | Nama Laporan | Dimensi Analisis | Formula Agregasi (Measures) | Tujuan Bisnis |
+| :--- | :--- | :--- | :--- | :--- |
+| **L1** | **Volume & Revenue Pengiriman** | `dim_date.year`, `dim_date.month_name`, `dim_service.service_type` | <ul><li>`COUNT(fact_shipment.shipment_key)` (Jumlah Paket)</li><li>`SUM(fact_shipment.tarif_total)` (Total Pendapatan)</li><li>`AVG(fact_shipment.tarif_total)` (Rata-rata Tarif)</li></ul> | Mengukur performa pertumbuhan transaksi dan pendapatan bulanan per jenis layanan. |
+| **L2** | **Performa Kurir per Zona** | `dim_courier_profile.zone`, `dim_courier_profile.vehicle_type` | <ul><li>`COUNT(fact_shipment.shipment_key)` (Jumlah Pengiriman)</li><li>`AVG(fact_shipment.distance_km)` (Rata-rata Jarak Tempuh)</li></ul> | Menganalisis beban kerja kurir berdasarkan wilayah operasional dan jenis kendaraan. |
+| **L3** | **Analisis Kemacetan Hub (Warehouse)** | `dim_warehouse.warehouse_name`, `fact_shipment.order_status` | <ul><li>`COUNT(fact_shipment.shipment_key)` (Jumlah Paket Tertahan/Transit)</li></ul> | Mengidentifikasi bottleneck penumpukan barang pada gudang hub tertentu. |
+| **L4** | **Penyebaran Geografis Pengiriman** | `dim_location.province` (Asal), `dim_location.city_kabupaten` (Tujuan) | <ul><li>`COUNT(fact_shipment.shipment_key)` (Jumlah Transaksi)</li><li>`SUM(fact_shipment.tarif_total)` (Total Omzet)</li></ul> | Mengetahui rute dan wilayah pengiriman dengan kepadatan volume tertinggi untuk alokasi resource. |
+| **L5** | **Rasio Keberhasilan Notifikasi** | `dim_notification_type.channel`, `dim_notification_type.event_type` | <ul><li>`COUNT(fact_notification.notif_key)` (Total Notifikasi Terkirim)</li><li>`AVG(fact_notification.success::INT) * 100` (Persentase Keberhasilan)</li></ul> | Mengukur kualitas pengiriman notifikasi SMS/Email ke customer. |

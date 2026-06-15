@@ -911,19 +911,19 @@ Desain dimensi dan fakta di dalam Data Warehouse mendukung pembuatan berbagai la
 
 #### 2. Analisis Throughput dan Kinerja Gudang (Warehouse Throughput & Volume Report)
 *   **Tujuan**: Mengidentifikasi hub pergudangan terpadat dan mendeteksi potensi kemacetan arus paket (*bottlenecks*).
-*   **Dimensi Terkait**: `dim_warehouse` (nama hub, wilayah, kota), `dim_order` (kota asal, kota tujuan).
+*   **Dimensi Terkait**: `dim_warehouse` (nama hub, wilayah, kota), `dim_location` (kota asal, kota tujuan via role-playing).
 *   **Metrik**: `COUNT(shipment_key)` per `warehouse_key`, `AVG(package_weight)`.
 *   **Kueri DWH**: Perbandingan jumlah paket masuk (*inbound*) antar-wilayah operasional (`dim_warehouse.region`).
 
 #### 3. Analisis Kinerja Kurir dan Penugasan (Courier Performance & Dispatch Report)
 *   **Tujuan**: Mengukur efisiensi kerja kurir dan sebaran penugasan kurir di zona tertentu.
-*   **Dimensi Terkait**: `dim_courier` (nama kurir, tipe kendaraan, zona), `dim_date`.
-*   **Metrik**: `COUNT(shipment_key)` per kurir, rasio kurir dengan status `ON_DUTY` vs `AVAILABLE`.
-*   **Kueri DWH**: Menghitung rata-rata pengiriman yang berhasil diselesaikan per kurir dalam satu periode.
+*   **Dimensi Terkait**: `dim_courier_profile` (tipe kendaraan, zona), `dim_date`.
+*   **Metrik**: `COUNT(shipment_key)` (Jumlah Pengiriman), `AVG(distance_km)` (Jarak Tempuh) per profil.
+*   **Kueri DWH**: Menghitung rata-rata pengiriman yang berhasil diselesaikan per jenis kendaraan atau zona kurir.
 
 #### 4. Laporan Keberhasilan Notifikasi (Notification Success Rate Report)
 *   **Tujuan**: Memastikan keandalan sistem komunikasi dengan konsumen dan memantau persentase notifikasi gagal.
-*   **Dimensi Terkait**: `dim_date`, `dim_order` (via `awb`).
+*   **Dimensi Terkait**: `dim_date`, `fact_notification` (via `awb`).
 *   **Tabel Fakta Terkait**: `fact_notification` (success status, channel, event_type).
 *   **Metrik**: Rasio sukses = `COUNT(success = true) / TOTAL(notif_key)`.
 *   **Kueri DWH**: Persentase sukses pengiriman pesan notifikasi yang dikelompokkan berdasarkan kanal (`channel` email/push) dan jenis event (`event_type`).
@@ -939,6 +939,6 @@ Berikut adalah ringkasan rancangan visualisasi dashboard yang direkomendasikan u
 | **2** | Tren Pendapatan Bulanan | **Line Chart** | `dim_date.year` & `dim_date.month_name` | `SUM(tarif_total)` | Eksekutif & Keuangan |
 | **3** | Distribusi Tipe Layanan | **Donut Chart** | `dim_service.service_type` (Express/Regular/Cargo) | `COUNT(shipment_key)` | Manajer Produk |
 | **4** | Kepadatan Arus Paket per Gudang | **Bar Chart (Horizontal)** | `dim_warehouse.warehouse_name` | `COUNT(shipment_key)` | Manajer Operasional Gudang |
-| **5** | Volume Pengiriman Geografis | **Geo-Map Chart** | `dim_order.recipient_city` (Peta Kota Penerima) | `COUNT(shipment_key)` | Eksekutif & Marketing |
-| **6** | Produktivitas Pengiriman Kurir | **Table & Bar Chart** | `dim_courier.courier_name` & `vehicle_type` | `COUNT(shipment_key)` | Manajer Armada (Fleet Manager) |
+| **5** | Volume Pengiriman Geografis | **Geo-Map Chart** | `dim_location.province` (Peta Provinsi Penerima) | `COUNT(shipment_key)` | Eksekutif & Marketing |
+| **6** | Produktivitas Pengiriman Kurir | **Table & Bar Chart** | `dim_courier_profile.vehicle_type` & `zone` | `COUNT(shipment_key)` | Manajer Armada (Fleet Manager) |
 | **7** | Analisis Keberhasilan Notifikasi | **Stacked Column Chart** | `fact_notification.channel` & `event_type` | `success` (True/False count) | Tim IT Support & DevOps |

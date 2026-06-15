@@ -87,6 +87,20 @@ func (r *courierRepository) UpdateStatus(ctx context.Context, id string, status 
 }
 
 func (r *courierRepository) Create(ctx context.Context, c *domain.Courier) error {
+	queryCreateTable := `
+	CREATE TABLE IF NOT EXISTS couriers (
+		id VARCHAR(50) PRIMARY KEY,
+		name VARCHAR(100) NOT NULL,
+		phone_number VARCHAR(50) NOT NULL,
+		zone VARCHAR(50) NOT NULL,
+		status VARCHAR(20) NOT NULL,
+		vehicle_type VARCHAR(50) NOT NULL
+	);`
+	_, err := r.db.ExecContext(ctx, queryCreateTable)
+	if err != nil {
+		return err
+	}
+
 	queryInsert := `
 	INSERT INTO couriers (id, name, phone_number, zone, status, vehicle_type)
 	VALUES ($1, $2, $3, $4, $5, $6)
@@ -96,6 +110,6 @@ func (r *courierRepository) Create(ctx context.Context, c *domain.Courier) error
 		zone = EXCLUDED.zone,
 		status = EXCLUDED.status,
 		vehicle_type = EXCLUDED.vehicle_type;`
-	_, err := r.db.ExecContext(ctx, queryInsert, c.ID, c.Name, c.PhoneNumber, c.Zone, string(c.Status), c.VehicleType)
+	_, err = r.db.ExecContext(ctx, queryInsert, c.ID, c.Name, c.PhoneNumber, c.Zone, string(c.Status), c.VehicleType)
 	return err
 }

@@ -41,34 +41,30 @@ def init_dwh_tables():
         """))
         
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS dim_order (
-                order_key SERIAL PRIMARY KEY,
-                awb VARCHAR(50) UNIQUE NOT NULL,
-                sender_name VARCHAR(100),
-                sender_city VARCHAR(50),
-                recipient_city VARCHAR(50),
-                eta TIMESTAMP,
-                order_status VARCHAR(50),
-                created_at TIMESTAMP
+            CREATE TABLE IF NOT EXISTS dim_location (
+                location_key SERIAL PRIMARY KEY,
+                province VARCHAR(50) NOT NULL,
+                city_kabupaten VARCHAR(50) NOT NULL,
+                district_kecamatan VARCHAR(50) NOT NULL,
+                subdistrict_kelurahan VARCHAR(50) NOT NULL,
+                UNIQUE (province, city_kabupaten, district_kecamatan, subdistrict_kelurahan)
             );
         """))
         
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS dim_courier (
-                courier_key SERIAL PRIMARY KEY,
-                courier_id VARCHAR(50) UNIQUE NOT NULL,
-                courier_name VARCHAR(100) NOT NULL,
-                zone VARCHAR(50),
-                vehicle_type VARCHAR(50),
-                dispatch_status VARCHAR(50)
+            CREATE TABLE IF NOT EXISTS dim_courier_profile (
+                courier_profile_key SERIAL PRIMARY KEY,
+                zone VARCHAR(50) NOT NULL,
+                vehicle_type VARCHAR(50) NOT NULL,
+                UNIQUE (zone, vehicle_type)
             );
         """))
         
-        # Sentinel Row for dim_courier
+        # Sentinel Row for dim_courier_profile
         conn.execute(text("""
-            INSERT INTO dim_courier (courier_key, courier_id, courier_name, zone, vehicle_type, dispatch_status)
-            VALUES (-1, 'N/A', 'Belum Ditugaskan', 'N/A', 'N/A', 'N/A')
-            ON CONFLICT (courier_id) DO NOTHING;
+            INSERT INTO dim_courier_profile (courier_profile_key, zone, vehicle_type)
+            VALUES (-1, 'N/A', 'N/A')
+            ON CONFLICT (zone, vehicle_type) DO NOTHING;
         """))
 
         conn.execute(text("""
@@ -117,11 +113,14 @@ def init_dwh_tables():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS fact_shipment (
                 shipment_key SERIAL PRIMARY KEY,
+                awb VARCHAR(50) UNIQUE NOT NULL,
                 date_key INT NOT NULL REFERENCES dim_date(date_key),
-                order_key INT NOT NULL REFERENCES dim_order(order_key),
-                courier_key INT NOT NULL REFERENCES dim_courier(courier_key),
+                origin_location_key INT NOT NULL REFERENCES dim_location(location_key),
+                destination_location_key INT NOT NULL REFERENCES dim_location(location_key),
+                courier_profile_key INT NOT NULL REFERENCES dim_courier_profile(courier_profile_key),
                 warehouse_key INT NOT NULL REFERENCES dim_warehouse(warehouse_key),
                 service_key INT NOT NULL REFERENCES dim_service(service_key),
+                order_status VARCHAR(50) NOT NULL,
                 tarif_total NUMERIC NOT NULL,
                 distance_km NUMERIC NOT NULL,
                 package_weight NUMERIC NOT NULL,
@@ -184,6 +183,60 @@ def get_or_create_date_key(conn, timestamp):
             "is_weekend": timestamp.weekday() >= 5
         })
     return date_key
+
+def get_or_create_location_key(conn, city_name):
+    if not city_name or pd.isnull(city_name):
+        city_name = "Unknown"
+    
+    cleaned_city = str(city_name).strip().upper()
+    # Simple mapping dictionary to normalize free text to DWH dimension standards (province, city/kabupaten, district, subdistrict)
+    mapping = {
+        "BANDUNG": {
+            "province": "Jawa Barat",
+            "city_kabupaten": "Kota Bandung",
+            "district_kecamatan": "Coblong",
+            "subdistrict_kelurahan": "Dago"
+        },
+        "JAKARTA": {
+            "province": "DKI Jakarta",
+            "city_kabupaten": "Kota Jakarta Selatan",
+            "district_kecamatan": "Kebayoran Baru",
+            "subdistrict_kelurahan": "Selong"
+        },
+        "SURABAYA": {
+            "province": "Jawa Timur",
+            "city_kabupaten": "Kota Surabaya",
+            "district_kecamatan": "Gubeng",
+            "subdistrict_kelurahan": "Gubeng"
+        }
+    }
+    
+    # Fallback if city name not in preset mapping
+    loc_data = mapping.get(cleaned_city, {
+        "province": "Jawa Barat" if "BDG" in cleaned_city or "BANDUNG" in cleaned_city else "Unknown",
+        "city_kabupaten": f"Kota {city_name}" if "KOTA" not in cleaned_city.split() else city_name,
+        "district_kecamatan": "Unknown",
+        "subdistrict_kelurahan": "Unknown"
+    })
+    
+    # Try inserting with conflict handling
+    row = conn.execute(text("""
+        INSERT INTO dim_location (province, city_kabupaten, district_kecamatan, subdistrict_kelurahan)
+        VALUES (:province, :city_kabupaten, :district_kecamatan, :subdistrict_kelurahan)
+        ON CONFLICT (province, city_kabupaten, district_kecamatan, subdistrict_kelurahan)
+        DO UPDATE SET province = EXCLUDED.province
+        RETURNING location_key;
+    """), loc_data).fetchone()
+    
+    if row:
+        return row[0]
+    
+    # Fallback query
+    return conn.execute(text("""
+        SELECT location_key FROM dim_location 
+        WHERE province = :province AND city_kabupaten = :city_kabupaten 
+          AND district_kecamatan = :district_kecamatan AND subdistrict_kelurahan = :subdistrict_kelurahan
+    """), loc_data).scalar()
 
 def parse_eta(eta_str, created_at):
     if not eta_str or pd.isnull(eta_str):
@@ -266,29 +319,12 @@ def handle_order_created(awb):
 
         # Get created_at as datetime
         created_at = pd.to_datetime(order["created_at"])
-
-        # Load dim_order
-        conn.execute(text("""
-            INSERT INTO dim_order (awb, sender_name, sender_city, recipient_city, eta, order_status, created_at)
-            VALUES (:awb, :sender_name, :sender_city, :recipient_city, :eta, :order_status, :created_at)
-            ON CONFLICT (awb) DO UPDATE SET
-                order_status = EXCLUDED.order_status,
-                eta = EXCLUDED.eta;
-        """), {
-            "awb": order["awb"],
-            "sender_name": order["sender_name"],
-            "sender_city": order["sender_city"],
-            "recipient_city": order["recipient_city"],
-            "eta": parse_eta(order["eta"], created_at),
-            "order_status": order["status"],
-            "created_at": created_at
-        })
-
-        # Get Keys
-        created_at = pd.to_datetime(order["created_at"])
         date_key = get_or_create_date_key(conn, created_at)
         
-        order_key = conn.execute(text("SELECT order_key FROM dim_order WHERE awb = :awb"), {"awb": awb}).scalar()
+        # Get location keys (normalize sender and recipient city names)
+        origin_location_key = get_or_create_location_key(conn, order["sender_city"])
+        destination_location_key = get_or_create_location_key(conn, order["recipient_city"])
+        
         warehouse_key = conn.execute(text("SELECT warehouse_key FROM dim_warehouse WHERE warehouse_id = :warehouse_id"), {"warehouse_id": warehouse_id}).scalar()
         service_key = conn.execute(text("SELECT service_key FROM dim_service WHERE service_type = :service_type"), {"service_type": order["service_type"]}).scalar()
         
@@ -296,14 +332,17 @@ def handle_order_created(awb):
         volumetric_weight = (order["package_length"] * order["package_width"] * order["package_height"]) / 6000.0
 
         # Idempotent load to fact_shipment
-        exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE order_key = :order_key"), {"order_key": order_key}).scalar()
+        exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
         
         params = {
+            "awb": awb,
             "date_key": date_key,
-            "order_key": order_key,
-            "courier_key": -1, # Default sentinel
+            "origin_location_key": origin_location_key,
+            "destination_location_key": destination_location_key,
+            "courier_profile_key": -1, # Default sentinel
             "warehouse_key": warehouse_key,
             "service_key": service_key,
+            "order_status": order["status"],
             "tarif_total": order["tarif_total"],
             "distance_km": order["distance"],
             "package_weight": order["package_weight"],
@@ -312,21 +351,29 @@ def handle_order_created(awb):
 
         if not exists:
             conn.execute(text("""
-                INSERT INTO fact_shipment (date_key, order_key, courier_key, warehouse_key, service_key, tarif_total, distance_km, package_weight, volumetric_weight)
-                VALUES (:date_key, :order_key, :courier_key, :warehouse_key, :service_key, :tarif_total, :distance_km, :package_weight, :volumetric_weight)
+                INSERT INTO fact_shipment (
+                    awb, date_key, origin_location_key, destination_location_key, courier_profile_key, 
+                    warehouse_key, service_key, order_status, tarif_total, distance_km, package_weight, volumetric_weight
+                ) VALUES (
+                    :awb, :date_key, :origin_location_key, :destination_location_key, :courier_profile_key, 
+                    :warehouse_key, :service_key, :order_status, :tarif_total, :distance_km, :package_weight, :volumetric_weight
+                )
             """), params)
             print(f"Successfully loaded new shipment to DWH for AWB: {awb}")
         else:
             conn.execute(text("""
                 UPDATE fact_shipment SET
                     date_key = :date_key,
+                    origin_location_key = :origin_location_key,
+                    destination_location_key = :destination_location_key,
                     warehouse_key = :warehouse_key,
                     service_key = :service_key,
+                    order_status = :order_status,
                     tarif_total = :tarif_total,
                     distance_km = :distance_km,
                     package_weight = :package_weight,
                     volumetric_weight = :volumetric_weight
-                WHERE order_key = :order_key
+                WHERE awb = :awb
             """), params)
             print(f"Updated shipment details in DWH for AWB: {awb}")
 
@@ -341,44 +388,37 @@ def handle_dispatch_assigned(awb, courier_id):
         return
 
     with DWH_ENGINE.begin() as conn:
-        # Load dim_courier
+        # Load dim_courier_profile (using vehicle type & zone, removing individual identifier)
         conn.execute(text("""
-            INSERT INTO dim_courier (courier_id, courier_name, zone, vehicle_type, dispatch_status)
-            VALUES (:courier_id, :courier_name, :zone, :vehicle_type, :dispatch_status)
-            ON CONFLICT (courier_id) DO UPDATE SET
-                courier_name = EXCLUDED.courier_name,
-                zone = EXCLUDED.zone,
-                vehicle_type = EXCLUDED.vehicle_type,
-                dispatch_status = EXCLUDED.dispatch_status;
+            INSERT INTO dim_courier_profile (zone, vehicle_type)
+            VALUES (:zone, :vehicle_type)
+            ON CONFLICT (zone, vehicle_type) DO UPDATE SET zone = EXCLUDED.zone
         """), {
-            "courier_id": courier["id"],
-            "courier_name": courier["name"],
             "zone": courier["zone"],
-            "vehicle_type": courier["vehicle_type"],
-            "dispatch_status": courier["status"]
+            "vehicle_type": courier["vehicle_type"]
         })
 
-        # Fetch keys
-        order_key = conn.execute(text("SELECT order_key FROM dim_order WHERE awb = :awb"), {"awb": awb}).scalar()
-        courier_key = conn.execute(text("SELECT courier_key FROM dim_courier WHERE courier_id = :courier_id"), {"courier_id": courier_id}).scalar()
+        # Fetch key
+        courier_profile_key = conn.execute(text("""
+            SELECT courier_profile_key FROM dim_courier_profile 
+            WHERE zone = :zone AND vehicle_type = :vehicle_type
+        """), {
+            "zone": courier["zone"],
+            "vehicle_type": courier["vehicle_type"]
+        }).scalar()
 
-        if order_key:
-            # Update fact_shipment
+        # Update fact_shipment
+        exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
+        if exists:
             conn.execute(text("""
                 UPDATE fact_shipment 
-                SET courier_key = :courier_key 
-                WHERE order_key = :order_key
-            """), {"courier_key": courier_key, "order_key": order_key})
-            
-            # Update dim_order status
-            conn.execute(text("""
-                UPDATE dim_order 
-                SET order_status = 'PICKED_UP' 
-                WHERE order_key = :order_key
-            """), {"order_key": order_key})
-            print(f"Updated shipment courier to {courier['name']} for AWB: {awb}")
+                SET courier_profile_key = :courier_profile_key,
+                    order_status = 'PICKED_UP' 
+                WHERE awb = :awb
+            """), {"courier_profile_key": courier_profile_key, "awb": awb})
+            print(f"Updated shipment courier profile (Zone: {courier['zone']}, Type: {courier['vehicle_type']}) for AWB: {awb}")
         else:
-            print(f"WARNING: Order with AWB {awb} not found in dim_order. Cannot assign courier yet.")
+            print(f"WARNING: Order with AWB {awb} not found in fact_shipment. Cannot assign courier profile yet.")
 
 def handle_tracking_event(awb, status, location_code, event_time):
     print(f"Processing tracking event: AWB: {awb}, Status: {status}, Location: {location_code}")
@@ -417,23 +457,18 @@ def handle_tracking_event(awb, status, location_code, event_time):
                 })
             wh_key = conn.execute(text("SELECT warehouse_key FROM dim_warehouse WHERE warehouse_id = :wh_id"), {"wh_id": location_code}).scalar()
 
-        # Update order status and warehouse in DWH
-        order_key = conn.execute(text("SELECT order_key FROM dim_order WHERE awb = :awb"), {"awb": awb}).scalar()
-        if order_key:
-            conn.execute(text("""
-                UPDATE dim_order 
-                SET order_status = :status 
-                WHERE order_key = :order_key
-            """), {"status": status, "order_key": order_key})
-
+        # Update order status and warehouse key in fact_shipment directly
+        exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
+        if exists:
             conn.execute(text("""
                 UPDATE fact_shipment 
-                SET warehouse_key = :wh_key 
-                WHERE order_key = :order_key
-            """), {"wh_key": wh_key, "order_key": order_key})
-            print(f"Updated tracking location to {location_code} for AWB: {awb}")
+                SET order_status = :status,
+                    warehouse_key = :wh_key 
+                WHERE awb = :awb
+            """), {"status": status, "wh_key": wh_key, "awb": awb})
+            print(f"Updated tracking location to {location_code} and status to {status} for AWB: {awb}")
         else:
-            print(f"WARNING: Order with AWB {awb} not found in dim_order. Skipping tracking update.")
+            print(f"WARNING: Order with AWB {awb} not found in fact_shipment. Skipping tracking update.")
 
 def handle_notification_sent(awb, channel, event_type, success, notif_at_str):
     print(f"Processing notification event: AWB: {awb}, Channel: {channel}, Event: {event_type}, Success: {success}")
@@ -472,13 +507,13 @@ def handle_notification_sent(awb, channel, event_type, success, notif_at_str):
         })
 
         # Update notification count in fact_shipment if order exists
-        order_key = conn.execute(text("SELECT order_key FROM dim_order WHERE awb = :awb"), {"awb": awb}).scalar()
-        if order_key and success:
+        exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
+        if exists and success:
             conn.execute(text("""
                 UPDATE fact_shipment 
                 SET notification_count = notification_count + 1 
-                WHERE order_key = :order_key
-            """), {"order_key": order_key})
+                WHERE awb = :awb
+            """), {"awb": awb})
             print(f"Incremented notification_count in fact_shipment for AWB: {awb}")
 
 # --- 3. MAIN KAFKA CONSUMER LOOP ---
