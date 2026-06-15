@@ -251,6 +251,8 @@ services:
       context: ./etl-pipeline
       dockerfile: Dockerfile
     container_name: etl-service
+    ports:
+      - "8085:8085"
     environment:
       - KAFKA_BROKER=kafka:29092
       - ORDER_DB_URL=postgresql://postgres:admin123@order-db:5432/papiton_order_tariff_service_db

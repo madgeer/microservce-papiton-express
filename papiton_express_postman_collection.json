@@ -1,0 +1,624 @@
+{
+  "info": {
+    "_postman_id": "8f8373b9-a612-4fb0-88cb-04e4e942f9a9",
+    "name": "PAPITON Express API Collection",
+    "description": "Postman Collection for testing PAPITON Express Microservices (Order, Shipping, Warehouse, Tracking, Notification) end-to-end.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Order & Tariff Flow",
+      "item": [
+        {
+          "name": "Calculate Tariff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender\": {\n    \"name\": \"Budi\",\n    \"phone\": \"0812345678\",\n    \"email\": \"budi@gmail.com\",\n    \"full_address\": \"Dago No. 12\",\n    \"city\": \"Bandung\",\n    \"coordinate\": {\n      \"latitude\": -6.8915,\n      \"longitude\": 107.6106\n    }\n  },\n  \"recipient\": {\n    \"name\": \"Andi\",\n    \"phone\": \"0898765432\",\n    \"email\": \"andi@gmail.com\",\n    \"full_address\": \"Sudirman No. 45\",\n    \"city\": \"Jakarta\",\n    \"coordinate\": {\n      \"latitude\": -6.2088,\n      \"longitude\": 106.8456\n    }\n  },\n  \"package\": {\n    \"length\": 30.0,\n    \"width\": 20.0,\n    \"height\": 10.0,\n    \"actual_weight\": 2.5\n  },\n  \"service_type\": \"EXPRESS\",\n  \"has_insurance\": true,\n  \"has_packing\": false\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8082/api/v1/tariff/calculate",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8082",
+              "path": [
+                "api",
+                "v1",
+                "tariff",
+                "calculate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.awb) {",
+                  "    pm.collectionVariables.set(\"awb\", jsonData.awb);",
+                  "    console.log(\"Saved AWB to collection variable: \" + jsonData.awb);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender\": {\n    \"name\": \"Budi\",\n    \"phone\": \"0812345678\",\n    \"email\": \"budi@gmail.com\",\n    \"full_address\": \"Dago No. 12\",\n    \"city\": \"Bandung\",\n    \"coordinate\": {\n      \"latitude\": -6.8915,\n      \"longitude\": 107.6106\n    }\n  },\n  \"recipient\": {\n    \"name\": \"Andi\",\n    \"phone\": \"0898765432\",\n    \"email\": \"andi@gmail.com\",\n    \"full_address\": \"Sudirman No. 45\",\n    \"city\": \"Jakarta\",\n    \"coordinate\": {\n      \"latitude\": -6.2088,\n      \"longitude\": 106.8456\n    }\n  },\n  \"package\": {\n    \"length\": 30.0,\n    \"width\": 20.0,\n    \"height\": 10.0,\n    \"actual_weight\": 2.5\n  },\n  \"service_type\": \"EXPRESS\",\n  \"has_insurance\": true,\n  \"has_packing\": false\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8082/api/v1/orders",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8082",
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Order Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8082/api/v1/orders/get?awb={{awb}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8082",
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "awb",
+                  "value": "{{awb}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8082/api/v1/orders/get",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8082",
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "get"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Shipping & Dispatch Flow",
+      "item": [
+        {
+          "name": "Register Courier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"C-POSTMAN-01\",\n  \"name\": \"Ahmad Courier\",\n  \"phone_number\": \"08122334455\",\n  \"zone\": \"Bandung\",\n  \"status\": \"AVAILABLE\",\n  \"vehicle_type\": \"MOTORCYCLE\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8081/api/v1/couriers/register",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "v1",
+                "couriers",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Available Couriers in Zone",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/api/v1/couriers?zone=Bandung",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "v1",
+                "couriers"
+              ],
+              "query": [
+                {
+                  "key": "zone",
+                  "value": "Bandung"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Auto Dispatch Courier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"dispatch_id\", jsonData.id);",
+                  "    console.log(\"Saved Dispatch ID: \" + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{awb}}\",\n  \"pickup_zone\": \"Bandung\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8081/dispatch",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "dispatch"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirm Pick Up",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dispatch_id\": \"{{dispatch_id}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8081/api/v1/dispatches/confirm",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "v1",
+                "dispatches",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Courier GPS Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courier_id\": \"C-POSTMAN-01\",\n  \"latitude\": -6.8925,\n  \"longitude\": 107.6116\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8081/api/v1/couriers/location",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "v1",
+                "couriers",
+                "location"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Courier Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courier_id\": \"C-POSTMAN-01\",\n  \"status\": \"AVAILABLE\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8081/api/v1/couriers/status",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "api",
+                "v1",
+                "couriers",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Warehouse & Inventory Flow",
+      "item": [
+        {
+          "name": "Inbound Package at Hub",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resi\": \"{{awb}}\",\n  \"warehouse_id\": \"WH-BDG\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/inbound",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "inbound"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Manifest",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.manifest_id) {",
+                  "    pm.collectionVariables.set(\"manifest_id\", jsonData.manifest_id);",
+                  "    console.log(\"Saved Manifest ID: \" + jsonData.manifest_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"truck_id\": \"TRK-POSTMAN-99\",\n  \"driver_name\": \"Agus Hidayat\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/manifest/create",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "manifest",
+                "create"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Package to Manifest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manifest_id\": \"{{manifest_id}}\",\n  \"resi\": \"{{awb}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/manifest/add",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "manifest",
+                "add"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Manifest Status (Depart)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manifest_id\": \"{{manifest_id}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/manifest/update",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "manifest",
+                "update"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Tracking Flow",
+      "item": [
+        {
+          "name": "Get Package Tracking History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8083/api/v1/tracking?resi_id={{awb}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "v1",
+                "tracking"
+              ],
+              "query": [
+                {
+                  "key": "resi_id",
+                  "value": "{{awb}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Log Tracking Event Manually",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resi_id\": \"{{awb}}\",\n  \"activity_code\": \"DELIVERED\",\n  \"location_code\": \"WH-UPI\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8083/api/v1/tracking/scan",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "v1",
+                "tracking",
+                "scan"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Raw Log Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8083/api/v1/tracking/logs",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "v1",
+                "tracking",
+                "logs"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Notification Flow",
+      "item": [
+        {
+          "name": "Get Notification Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8084/api/v1/notifications/logs",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8084",
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "logs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Direct Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"awb\": \"{{awb}}\",\n  \"channel\": \"email\",\n  \"event_type\": \"order.created\",\n  \"recipient\": \"customer@test.com\",\n  \"content\": \"Pesanan Anda dengan AWB {{awb}} telah berhasil dibuat.\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8084/api/v1/notifications/send-direct",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8084",
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "send-direct"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "awb",
+      "value": "RESI-INITIAL",
+      "type": "string"
+    },
+    {
+      "key": "dispatch_id",
+      "value": "DSP-INITIAL",
+      "type": "string"
+    },
+    {
+      "key": "manifest_id",
+      "value": "MAN-INITIAL",
+      "type": "string"
+    }
+  ]
+}

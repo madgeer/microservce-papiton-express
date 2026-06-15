@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text
 from pymongo import MongoClient
 from kafka import KafkaConsumer
 from sklearn.linear_model import LinearRegression
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # --- CONFIGURATION FROM ENV OR DEFAULTS ---
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
@@ -630,8 +631,204 @@ def handle_notification_sent(awb, channel, event_type, success, notif_at_str):
             """), {"awb": awb})
             print(f"Incremented notification_count in fact_shipment for AWB: {awb}")
 
-# --- 3. MAIN KAFKA CONSUMER LOOP ---
+# --- 3. DASHBOARD API SERVER ---
+class DashboardAPIHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # Suppress standard HTTP logs in etl-service console
+        return
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def handle_proxy(self, target_url, method='POST', body=None):
+        import urllib.request
+        import urllib.error
+        try:
+            req = urllib.request.Request(
+                target_url,
+                data=json.dumps(body).encode('utf-8') if body else None,
+                headers={'Content-Type': 'application/json'} if body else {},
+                method=method
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                resp_data = response.read().decode('utf-8')
+                self.send_response(response.status)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(resp_data.encode('utf-8'))
+        except urllib.error.HTTPError as e:
+            err_data = e.read().decode('utf-8')
+            self.send_response(e.code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(err_data.encode('utf-8'))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+
+    def do_GET(self):
+        if self.path == '/api/metrics':
+            try:
+                metrics = self.get_dwh_metrics()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(metrics).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+        elif self.path.startswith('/api/proxy/tracking'):
+            query = self.path.split('?')[-1] if '?' in self.path else ''
+            target = f"http://tracking-app:8080/api/v1/tracking?{query}"
+            self.handle_proxy(target, method='GET')
+        elif self.path.startswith('/api/proxy/couriers'):
+            query = self.path.split('?')[-1] if '?' in self.path else ''
+            target = f"http://shipping-app:8080/api/v1/couriers?{query}"
+            self.handle_proxy(target, method='GET')
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length) if content_length > 0 else b''
+        body = json.loads(post_data.decode('utf-8')) if post_data else None
+
+        if self.path == '/api/proxy/orders':
+            self.handle_proxy("http://order-app:8080/api/v1/orders", method='POST', body=body)
+        elif self.path == '/api/proxy/tariff/calculate':
+            self.handle_proxy("http://order-app:8080/api/v1/tariff/calculate", method='POST', body=body)
+        elif self.path == '/api/proxy/couriers/register':
+            self.handle_proxy("http://shipping-app:8080/api/v1/couriers/register", method='POST', body=body)
+        elif self.path == '/api/proxy/dispatch':
+            self.handle_proxy("http://shipping-app:8080/dispatch", method='POST', body=body)
+        elif self.path == '/api/proxy/dispatches/confirm':
+            self.handle_proxy("http://shipping-app:8080/api/v1/dispatches/confirm", method='POST', body=body)
+        elif self.path == '/api/proxy/inbound':
+            self.handle_proxy("http://warehouse-app:8080/api/v1/inbound", method='POST', body=body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def get_dwh_metrics(self):
+        data = {}
+        with DWH_ENGINE.connect() as conn:
+            # 1. Total Delivery & Total Revenue & Average Delivery Time
+            totals = conn.execute(text("""
+                SELECT 
+                    COUNT(*) as total_delivery,
+                    COALESCE(SUM(tarif_total), 0) as total_revenue,
+                    COALESCE(AVG(actual_duration_hours), 0) as avg_duration
+                FROM fact_shipment;
+            """)).mappings().first()
+            data['total_delivery'] = totals['total_delivery']
+            data['total_revenue'] = float(totals['total_revenue'])
+            data['avg_duration_hours'] = float(totals['avg_duration'])
+
+            # 2. Notification Success Rate
+            notif = conn.execute(text("""
+                SELECT 
+                    COUNT(*) as total_notif,
+                    COALESCE(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) * 100, 0) as success_rate
+                FROM fact_notification;
+            """)).mappings().first()
+            data['notification_count'] = notif['total_notif']
+            data['notification_success_rate'] = float(notif['success_rate'])
+
+            # 3. Driver Earnings and Rating stats
+            driver = conn.execute(text("""
+                SELECT 
+                    COALESCE(AVG(driver_earnings), 0) as avg_earnings,
+                    COALESCE(AVG(driver_rating), 0) as avg_rating
+                FROM fact_shipment 
+                WHERE courier_id != 'N/A';
+            """)).mappings().first()
+            data['driver_avg_earnings'] = float(driver['avg_earnings'])
+            data['driver_avg_rating'] = float(driver['avg_rating'])
+            
+            # Filter count to exclude N/A
+            active_count = conn.execute(text("""
+                SELECT COUNT(DISTINCT courier_id) FROM fact_shipment WHERE courier_id != 'N/A';
+            """)).scalar() or 0
+            data['driver_active_count'] = active_count
+
+            # 4. Monthly volume trend
+            monthly = conn.execute(text("""
+                SELECT d.month_name, COUNT(f.shipment_key) as volume
+                FROM fact_shipment f
+                JOIN dim_date d ON f.date_key = d.date_key
+                GROUP BY d.month_name, d.month_num
+                ORDER BY d.month_num;
+            """)).mappings().all()
+            data['monthly_volumes'] = [int(m['volume']) for m in monthly]
+            data['monthly_labels'] = [m['month_name'].strip() for m in monthly]
+
+            if not data['monthly_volumes']:
+                data['monthly_volumes'] = [0]
+                data['monthly_labels'] = ['No Data']
+
+            # 5. Service Type Distribution
+            service = conn.execute(text("""
+                SELECT s.service_type, COUNT(f.shipment_key) as count
+                FROM fact_shipment f
+                JOIN dim_service s ON f.service_key = s.service_key
+                GROUP BY s.service_type;
+            """)).mappings().all()
+            data['service_types'] = [s['service_type'] for s in service]
+            data['service_counts'] = [int(s['count']) for s in service]
+
+            # 6. Warehouse Inbound count
+            warehouse = conn.execute(text("""
+                SELECT w.warehouse_id, COUNT(f.shipment_key) as count
+                FROM fact_shipment f
+                JOIN dim_warehouse w ON f.warehouse_key = w.warehouse_key
+                GROUP BY w.warehouse_id;
+            """)).mappings().all()
+            data['warehouse_ids'] = [w['warehouse_id'] for w in warehouse]
+            data['warehouse_counts'] = [int(w['count']) for w in warehouse]
+
+            # 7. Notification Channel Stats
+            channel_stats = conn.execute(text("""
+                SELECT 
+                    t.channel,
+                    COALESCE(AVG(CASE WHEN f.success THEN 1.0 ELSE 0.0 END) * 100, 0) as success_rate,
+                    COALESCE(AVG(CASE WHEN NOT f.success THEN 1.0 ELSE 0.0 END) * 100, 0) as failure_rate
+                FROM fact_notification f
+                JOIN dim_notification_type t ON f.notif_type_key = t.notif_type_key
+                GROUP BY t.channel;
+            """)).mappings().all()
+            
+            data['notif_channels'] = [c['channel'] for c in channel_stats]
+            data['notif_success_rates'] = [float(c['success_rate']) for c in channel_stats]
+            data['notif_failure_rates'] = [float(c['failure_rate']) for c in channel_stats]
+
+        return data
+
+# --- 4. MAIN KAFKA CONSUMER LOOP ---
 def main():
+    # Start Dashboard API server in background thread
+    def run_api_server():
+        try:
+            server = HTTPServer(('0.0.0.0', 8085), DashboardAPIHandler)
+            print("Dashboard API Server running on port 8085...")
+            server.serve_forever()
+        except Exception as e:
+            print(f"Error running Dashboard API Server: {e}")
+
+    threading.Thread(target=run_api_server, daemon=True).start()
     print("Starting Data Warehouse ETL Real-time Consumer...")
     
     # Run migrations/table initializations
