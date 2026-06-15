@@ -50,6 +50,9 @@ erDiagram
         NUMERIC distance_km "Measure (Additive)"
         NUMERIC package_weight "Measure (Additive)"
         NUMERIC volumetric_weight "Measure (Additive)"
+        NUMERIC predicted_duration_hours "Measure (ML Prediction)"
+        NUMERIC actual_duration_hours "Measure (ML Actual)"
+        NUMERIC eta_prediction_error "Measure (ML Error)"
         INT notification_count "Measure (Additive)"
         TIMESTAMP etl_loaded_at
     }
@@ -130,9 +133,12 @@ erDiagram
 Tabel fakta transaksi pengiriman. Butiran data (*grain*) adalah satu baris per resi pengiriman (AWB). Memiliki degenerate dimensions (`awb`, `order_status`) dan referensi ke dimensi geografis pengirim/penerima.
 *   **Measures**:
     *   `tarif_total` (Bisa di-`SUM` untuk total omzet atau di-`AVG` untuk rata-rata tarif)
-    *   `distance_km` (Bisa di-`SUM` untuk total jarak tempuh atau di-`AVG` untuk rata-rata jarak)
+    *   `distance_km` (Bisa di-`SUM` untuk total jarak tempuh or di-`AVG` untuk rata-rata jarak)
     *   `package_weight` (Bisa di-`AVG` untuk rata-rata berat paket)
     *   `volumetric_weight` (Bisa di-`AVG` untuk rata-rata berat volumetrik)
+    *   `predicted_duration_hours` (Bisa di-`AVG` untuk durasi estimasi pengiriman hasil prediksi model ML)
+    *   `actual_duration_hours` (Bisa di-`AVG` untuk durasi pengiriman aktual dalam jam)
+    *   `eta_prediction_error` (Bisa di-`AVG` untuk mengukur rata-rata kesalahan prediksi model ML / MAE)
     *   `notification_count` (Bisa di-`SUM` untuk total notifikasi yang dikirimkan)
     *   `COUNT(shipment_key)` (Agregasi dinamis untuk menghitung jumlah total paket/transaksi)
 
@@ -174,6 +180,8 @@ Data diekstraksi secara real-time melalui Kafka Event Consumer dan disimpan ke d
 *   **T2 - Normalisasi Wilayah**: Memetakan teks kota (e.g. "Bandung") ke dalam baris dimensi terstruktur `dim_location` (Provinsi, Kabupaten, Kecamatan, Kelurahan) menggunakan standarisasi kamus wilayah.
 *   **T3 - Perhitungan Berat Volumetrik**: `(length_cm * width_cm * height_cm) / 6000.0`
 *   **T4 - Penanganan NULL**: Mengarahkan penugasan kurir kosong ke sentinel row `courier_profile_key = -1`.
+*   **T5 - Prediksi Durasi Pengiriman (ML)**: Memprediksi `predicted_duration_hours` secara real-time saat order dibuat menggunakan model Regresi Linier (`scikit-learn`).
+*   **T6 - Perhitungan Error Estimasi (ML)**: Menghitung `actual_duration_hours` dan `eta_prediction_error` saat paket terkirim (`DELIVERED`) serta men-trigger latih ulang model secara otomatis.
 
 ---
 
@@ -188,3 +196,4 @@ Berikut adalah definisi matrik laporan operasional yang dibangun di atas rancang
 | **L3** | **Analisis Kemacetan Hub (Warehouse)** | `dim_warehouse.warehouse_name`, `fact_shipment.order_status` | <ul><li>`COUNT(fact_shipment.shipment_key)` (Jumlah Paket Tertahan/Transit)</li></ul> | Mengidentifikasi bottleneck penumpukan barang pada gudang hub tertentu. |
 | **L4** | **Penyebaran Geografis Pengiriman** | `dim_location.province` (Asal), `dim_location.city_kabupaten` (Tujuan) | <ul><li>`COUNT(fact_shipment.shipment_key)` (Jumlah Transaksi)</li><li>`SUM(fact_shipment.tarif_total)` (Total Omzet)</li></ul> | Mengetahui rute dan wilayah pengiriman dengan kepadatan volume tertinggi untuk alokasi resource. |
 | **L5** | **Rasio Keberhasilan Notifikasi** | `dim_notification_type.channel`, `dim_notification_type.event_type` | <ul><li>`COUNT(fact_notification.notif_key)` (Total Notifikasi Terkirim)</li><li>`AVG(fact_notification.success::INT) * 100` (Persentase Keberhasilan)</li></ul> | Mengukur kualitas pengiriman notifikasi SMS/Email ke customer. |
+| **L6** | **Akurasi Model Prediksi ETA (ML)** | `dim_date.year`, `dim_date.month_name`, `dim_service.service_type` | <ul><li>`AVG(ABS(fact_shipment.eta_prediction_error))` (Mean Absolute Error / MAE)</li><li>`AVG(fact_shipment.actual_duration_hours)` (Rata-rata Durasi Pengiriman)</li></ul> | Memantau akurasi performa kecerdasan buatan (ML) dalam mengestimasi durasi pengiriman secara bulanan. |

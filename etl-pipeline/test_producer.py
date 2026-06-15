@@ -235,6 +235,28 @@ def test_pipeline():
     }
     producer.send("papiton.events.tracking", tracking_event)
     producer.flush()
+    time.sleep(2)
+
+    # 2.4 Tracking Delivered Event
+    print("Step 5: Publishing papiton.events.tracking (package.delivered)...")
+    delivered_event = {
+        "event_id": f"EVT-DEL-{test_awb}",
+        "event_type": "package.delivered",
+        "user_id": "customer@test.com",
+        "awb": test_awb,
+        "occurred_at": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "metadata": {
+            "location": "Warehouse WH-UPI",
+            "status": "inventory.delivered"
+        },
+        # Backward compatibility
+        "resi_id": test_awb,
+        "location_code": "WH-UPI",
+        "activity_code": "DELIVERED",
+        "timestamp": (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    }
+    producer.send("papiton.events.tracking", delivered_event)
+    producer.flush()
     print("All events published successfully!")
     print("\nCheck the etl-service log to see the real-time consumption output!")
 

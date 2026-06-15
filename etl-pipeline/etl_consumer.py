@@ -2,10 +2,14 @@ import os
 import json
 import datetime
 import time
+import pickle
+import threading
+import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
 from pymongo import MongoClient
 from kafka import KafkaConsumer
+from sklearn.linear_model import LinearRegression
 
 # --- CONFIGURATION FROM ENV OR DEFAULTS ---
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
@@ -22,6 +26,60 @@ SHIPPING_ENGINE = create_engine(SHIPPING_DB_URL)
 WAREHOUSE_ENGINE = create_engine(WAREHOUSE_DB_URL)
 DWH_ENGINE = create_engine(DWH_DB_URL)
 
+MODEL_PATH = "/app/eta_model.pkl"
+
+def train_model():
+    print("Triggering machine learning model training loop...")
+    try:
+        # Read historical delivered data from DWH
+        with DWH_ENGINE.connect() as conn:
+            query = """
+                SELECT f.distance_km, f.package_weight, f.volumetric_weight, 
+                       (CASE WHEN s.service_type = 'EXPRESS' THEN 1 ELSE 0 END) as is_express,
+                       f.actual_duration_hours
+                FROM fact_shipment f
+                JOIN dim_service s ON f.service_key = s.service_key
+                WHERE f.order_status = 'DELIVERED' AND f.actual_duration_hours IS NOT NULL
+            """
+            df = pd.read_sql(query, conn)
+        
+        if len(df) < 3:
+            print(f"Not enough training data in DWH (have {len(df)} records, need at least 3). Skipping training.")
+            return
+        
+        X = df[['distance_km', 'package_weight', 'volumetric_weight', 'is_express']].values
+        y = df['actual_duration_hours'].values
+        
+        model = LinearRegression()
+        model.fit(X, y)
+        
+        # Save model to file
+        with open(MODEL_PATH, 'wb') as f:
+            pickle.dump(model, f)
+        print(f"Machine learning model successfully trained on {len(df)} records and saved to {MODEL_PATH}!")
+    except Exception as e:
+        print(f"Error training machine learning model: {e}")
+
+def predict_duration(distance, weight, vol_weight, is_express):
+    # Rule-based heuristic fallback (e.g. 2 hrs per 50km for express, 5 hrs per 50km for regular + weight factor)
+    base_duration = (distance / 50.0) * (2.0 if is_express else 5.0) + (weight * 0.5)
+    if base_duration < 1.0:
+        base_duration = 1.0
+        
+    if not os.path.exists(MODEL_PATH):
+        return round(base_duration, 2)
+        
+    try:
+        with open(MODEL_PATH, 'rb') as f:
+            model = pickle.load(f)
+        features = np.array([[distance, weight, vol_weight, 1 if is_express else 0]])
+        pred = model.predict(features)[0]
+        if pred < 0.5:
+            pred = 0.5
+        return round(float(pred), 2)
+    except Exception as e:
+        print(f"Error in ML prediction: {e}")
+        return round(base_duration, 2)
 # --- 1. DWH DATABASE INITIALIZATION ---
 def init_dwh_tables():
     print("Checking and creating DWH tables...")
@@ -125,6 +183,9 @@ def init_dwh_tables():
                 distance_km NUMERIC NOT NULL,
                 package_weight NUMERIC NOT NULL,
                 volumetric_weight NUMERIC NOT NULL,
+                predicted_duration_hours NUMERIC,
+                actual_duration_hours NUMERIC,
+                eta_prediction_error NUMERIC,
                 notification_count INT DEFAULT 0,
                 etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -141,6 +202,11 @@ def init_dwh_tables():
                 etl_loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """))
+
+        # Migrations to handle cases where tables were already created with old schema
+        conn.execute(text("ALTER TABLE fact_shipment ADD COLUMN IF NOT EXISTS predicted_duration_hours NUMERIC;"))
+        conn.execute(text("ALTER TABLE fact_shipment ADD COLUMN IF NOT EXISTS actual_duration_hours NUMERIC;"))
+        conn.execute(text("ALTER TABLE fact_shipment ADD COLUMN IF NOT EXISTS eta_prediction_error NUMERIC;"))
 
         # Pre-populate dim_date from 2025 to 2030 if empty
         date_count = conn.execute(text("SELECT COUNT(*) FROM dim_date")).scalar()
@@ -331,6 +397,15 @@ def handle_order_created(awb):
         # Calculate Volumetric Weight
         volumetric_weight = (order["package_length"] * order["package_width"] * order["package_height"]) / 6000.0
 
+        # ML Inference: Predict ETA duration in hours
+        is_express = (order["service_type"] == 'EXPRESS')
+        predicted_hours = predict_duration(
+            distance=float(order["distance"]),
+            weight=float(order["package_weight"]),
+            vol_weight=float(volumetric_weight),
+            is_express=is_express
+        )
+
         # Idempotent load to fact_shipment
         exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
         
@@ -346,20 +421,23 @@ def handle_order_created(awb):
             "tarif_total": order["tarif_total"],
             "distance_km": order["distance"],
             "package_weight": order["package_weight"],
-            "volumetric_weight": volumetric_weight
+            "volumetric_weight": volumetric_weight,
+            "predicted_duration_hours": predicted_hours
         }
 
         if not exists:
             conn.execute(text("""
                 INSERT INTO fact_shipment (
                     awb, date_key, origin_location_key, destination_location_key, courier_profile_key, 
-                    warehouse_key, service_key, order_status, tarif_total, distance_km, package_weight, volumetric_weight
+                    warehouse_key, service_key, order_status, tarif_total, distance_km, package_weight, 
+                    volumetric_weight, predicted_duration_hours
                 ) VALUES (
                     :awb, :date_key, :origin_location_key, :destination_location_key, :courier_profile_key, 
-                    :warehouse_key, :service_key, :order_status, :tarif_total, :distance_km, :package_weight, :volumetric_weight
+                    :warehouse_key, :service_key, :order_status, :tarif_total, :distance_km, :package_weight, 
+                    :volumetric_weight, :predicted_duration_hours
                 )
             """), params)
-            print(f"Successfully loaded new shipment to DWH for AWB: {awb}")
+            print(f"Successfully loaded new shipment to DWH for AWB: {awb} (Predicted ETA: {predicted_hours} hours)")
         else:
             conn.execute(text("""
                 UPDATE fact_shipment SET
@@ -372,10 +450,11 @@ def handle_order_created(awb):
                     tarif_total = :tarif_total,
                     distance_km = :distance_km,
                     package_weight = :package_weight,
-                    volumetric_weight = :volumetric_weight
+                    volumetric_weight = :volumetric_weight,
+                    predicted_duration_hours = :predicted_duration_hours
                 WHERE awb = :awb
             """), params)
-            print(f"Updated shipment details in DWH for AWB: {awb}")
+            print(f"Updated shipment details in DWH for AWB: {awb} (Predicted ETA: {predicted_hours} hours)")
 
 def handle_dispatch_assigned(awb, courier_id):
     print(f"Processing dispatch.assigned event for AWB: {awb}, Courier: {courier_id}")
@@ -467,6 +546,39 @@ def handle_tracking_event(awb, status, location_code, event_time):
                 WHERE awb = :awb
             """), {"status": status, "wh_key": wh_key, "awb": awb})
             print(f"Updated tracking location to {location_code} and status to {status} for AWB: {awb}")
+            
+            if status.upper() == 'DELIVERED':
+                try:
+                    # Query order created_at from ORDER_ENGINE
+                    with ORDER_ENGINE.connect() as src_conn:
+                        created_at_val = src_conn.execute(text("SELECT created_at FROM orders WHERE awb = :awb"), {"awb": awb}).scalar()
+                    
+                    if created_at_val:
+                        created_at = pd.to_datetime(created_at_val)
+                        delivered_time = pd.to_datetime(event_time)
+                        if created_at.tzinfo is not None:
+                            created_at = created_at.tz_localize(None)
+                        if delivered_time.tzinfo is not None:
+                            delivered_time = delivered_time.tz_localize(None)
+                        
+                        actual_hours = (delivered_time - created_at).total_seconds() / 3600.0
+                        
+                        # Get predicted duration from DWH
+                        predicted_hours = conn.execute(text("SELECT predicted_duration_hours FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar() or 0.0
+                        error = actual_hours - float(predicted_hours)
+                        
+                        conn.execute(text("""
+                            UPDATE fact_shipment 
+                            SET actual_duration_hours = :actual_hours,
+                                eta_prediction_error = :error
+                            WHERE awb = :awb
+                        """), {"actual_hours": actual_hours, "error": error, "awb": awb})
+                        print(f"DELIVERED AWB: {awb}. Actual Duration: {actual_hours:.2f} hours. Prediction Error: {error:.2f} hours.")
+                        
+                        # Trigger model retraining in background thread
+                        threading.Thread(target=train_model).start()
+                except Exception as ex:
+                    print(f"Error updating actual ML metrics on DELIVERED event: {ex}")
         else:
             print(f"WARNING: Order with AWB {awb} not found in fact_shipment. Skipping tracking update.")
 
