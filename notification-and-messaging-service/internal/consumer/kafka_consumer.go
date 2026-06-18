@@ -51,11 +51,12 @@ func NewKafkaConsumer(
 ) *KafkaConsumer {
 	brokerList := strings.Split(brokers, ",")
 	dlqWriter := &kafka.Writer{
-		Addr:         kafka.TCP(brokerList...),
-		Topic:        "papiton.dlq.events",
-		Balancer:     &kafka.LeastBytes{},
-		WriteTimeout: 2 * time.Second,
-		RequiredAcks: kafka.RequireOne,
+		Addr:                   kafka.TCP(brokerList...),
+		Topic:                  "papiton.dlq.events",
+		Balancer:               &kafka.LeastBytes{},
+		WriteTimeout:           2 * time.Second,
+		RequiredAcks:           kafka.RequireOne,
+		AllowAutoTopicCreation: true,
 	}
 
 	return &KafkaConsumer{

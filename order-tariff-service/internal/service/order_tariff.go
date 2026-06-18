@@ -11,10 +11,10 @@ const (
 )
 
 var MacetZones = map[string]float64{
-	"kopo":        1.25, // Kopo macet parah: +25%
-	"rancaekek":   1.15, // Rancaekek banjir/macet: +15%
-	"dayeuhkolot": 1.20, // Dayeuhkolot banjir/macet: +20%
-	"cibaduyut":   1.15, // Cibaduyut macet: +15%
+	"kopo":        1.25, // kopo macet parah: +25%
+	"rancaekek":   1.15, // rancaekek banjir/macet: +15%
+	"dayeuhkolot": 1.20, // dayeuhkolot banjir/macet: +20%
+	"cibaduyut":   1.15, // cibaduyut macet: +15%
 }
 
 func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) float64 {
@@ -24,8 +24,15 @@ func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) f
 	if volWeight > chargeableWeight {
 		chargeableWeight = volWeight
 	}
-	if chargeableWeight <= 0 {
-		chargeableWeight = 1.0 // minimal chargeable weight adalah 1 kg
+
+	// Terapkan pembulatan berat khas ekspedisi (toleransi desimal 0.3 kg)
+	chargeableWeight = bulatkanBerat(chargeableWeight)
+
+	// Terapkan batas berat minimum untuk layanan kargo (CARGO)
+	if strings.ToUpper(req.ServiceType) == "CARGO" {
+		if chargeableWeight < 10.0 {
+			chargeableWeight = 10.0 // Batas minimum kargo adalah 10 kg
+		}
 	}
 
 	// 2. Ambil base rate per kg dari cache Redis (jika tersedia)
@@ -37,10 +44,10 @@ func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) f
 	// 3. Hitung tarif dasar berdasarkan berat
 	tarif := baseRate * chargeableWeight
 
-	// 4. Tambahkan biaya jarak (misal Rp 1.000,- per km)
-	tarif += dist * 1000.0
+	//tambahkan biaya jarak (misal Rp 100,- per km)
+	tarif += dist * 100.0
 
-	// 5. Tambahkan multiplier tipe layanan
+	// tambahkan multiplier tipe layanan
 	switch req.ServiceType {
 	case "EXPRESS":
 		tarif *= 1.5
@@ -48,7 +55,7 @@ func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) f
 		tarif *= 0.8
 	}
 
-	// 5.1. Tambahkan dynamic pricing untuk area macet (Congestion Surcharge)
+	// Tambahkan dynamic pricing untuk area macet (Congestion Surcharge)
 	addrLower := strings.ToLower(req.Recipient.FullAddress)
 	cityLower := strings.ToLower(req.Recipient.City)
 	for zone, multiplier := range MacetZones {
@@ -67,4 +74,18 @@ func (s *orderService) hitungTotalTarif(req domain.OrderRequest, dist float64) f
 	}
 
 	return tarif
+}
+
+// bulatkanBerat membulatkan berat paket sesuai aturan standar ekspedisi (misal: JNE / J&T)
+// Jika kelebihan desimal > 0.3 kg, dibulatkan ke atas. Jika <= 0.3 kg, dibulatkan ke bawah.
+func bulatkanBerat(berat float64) float64 {
+	intPart := float64(int(berat))
+	fracPart := berat - intPart
+	if fracPart > 0.3 {
+		return intPart + 1.0
+	}
+	if intPart == 0 {
+		return 1.0 // minimal berat dihitung adalah 1 kg
+	}
+	return intPart
 }

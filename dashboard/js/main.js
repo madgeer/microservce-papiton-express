@@ -6,6 +6,14 @@ import * as ui from './ui.js';
 let mapInstance = null;
 let markerInstance = null;
 
+// Customer Desk Map Variables
+let customerMap = null;
+let senderMarker = null;
+let recipientMarker = null;
+let routeLine = null;
+let currentSenderCoords = [-6.9175, 107.6191]; // Default Bandung
+let currentRecipientCoords = [-6.2088, 106.8456]; // Default Jakarta
+
 const LocationCoords = {
   'WH-BDG': [-6.9175, 107.6191],
   'WH-BDO': [-6.9175, 107.6191],
@@ -56,14 +64,152 @@ async function fetchMetrics(isManual = false) {
   }
 }
 
+// Helper to Geocode address using OpenStreetMap Nominatim API
+async function geocodeAddress(address, fallbackCoords) {
+  if (!address || address.trim() === "") return fallbackCoords;
+  try {
+    const encodedAddress = encodeURIComponent(address + ", Indonesia");
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodedAddress}&format=json&limit=1`, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    if (!response.ok) throw new Error("Geocoding network error");
+    const results = await response.json();
+    if (results && results.length > 0) {
+      const lat = parseFloat(results[0].lat);
+      const lon = parseFloat(results[0].lon);
+      console.log(`Geocoded address "${address}" to: [${lat}, ${lon}]`);
+      return [lat, lon];
+    }
+  } catch (e) {
+    console.warn("Geocoding failed, falling back to default city coordinates:", e);
+  }
+  return fallbackCoords;
+}
+
+// Reverse Geocoding helper
+async function reverseGeocode(lat, lon, inputId, cityId) {
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data && data.display_name) {
+      document.getElementById(inputId).value = data.display_name;
+      
+      const citySelect = document.getElementById(cityId);
+      if (citySelect) {
+        const addr = data.address || {};
+        const regionText = JSON.stringify(addr).toLowerCase();
+        
+        if (regionText.includes('jakarta')) {
+          citySelect.value = 'Jakarta';
+        } else if (regionText.includes('surabaya') || regionText.includes('jawa timur')) {
+          citySelect.value = 'Surabaya';
+        } else if (regionText.includes('bandung') || regionText.includes('jawa barat') || regionText.includes('banten')) {
+          citySelect.value = 'Bandung';
+        }
+      }
+      return data.display_name;
+    }
+  } catch (e) {
+    console.error("Reverse geocoding error:", e);
+  }
+  return null;
+}
+
+// Initialize Customer Desk Map
+function initCustomerMap() {
+  if (customerMap) return;
+  const container = document.getElementById('customerMap');
+  if (!container) return;
+
+  const blueIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
+
+  const redIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
+
+  try {
+    customerMap = L.map('customerMap').setView([-6.5, 107.2], 8);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(customerMap);
+
+    senderMarker = L.marker(currentSenderCoords, { icon: blueIcon, draggable: true }).addTo(customerMap);
+    senderMarker.bindPopup("<b>Asal Pengiriman</b><br>Seret untuk menyesuaikan.");
+
+    recipientMarker = L.marker(currentRecipientCoords, { icon: redIcon, draggable: true }).addTo(customerMap);
+    recipientMarker.bindPopup("<b>Tujuan Pengiriman</b><br>Seret untuk menyesuaikan.");
+
+    senderMarker.on('dragend', async () => {
+      const latLng = senderMarker.getLatLng();
+      currentSenderCoords = [latLng.lat, latLng.lng];
+      document.getElementById('valSenderCoords').innerText = `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
+      updateRoute();
+      const resolved = await reverseGeocode(latLng.lat, latLng.lng, 'senderAddress', 'senderCity');
+      if (resolved) {
+        lastSenderResolvedAddress = resolved;
+      }
+    });
+
+    recipientMarker.on('dragend', async () => {
+      const latLng = recipientMarker.getLatLng();
+      currentRecipientCoords = [latLng.lat, latLng.lng];
+      document.getElementById('valRecipientCoords').innerText = `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
+      updateRoute();
+      const resolved = await reverseGeocode(latLng.lat, latLng.lng, 'recipientAddress', 'recipientCity');
+      if (resolved) {
+        lastRecipientResolvedAddress = resolved;
+      }
+    });
+
+    updateRoute();
+  } catch (err) {
+    console.error("Gagal inisialisasi customer map:", err);
+  }
+}
+
+// Draw polyline and adjust boundaries
+function updateRoute() {
+  if (!customerMap) return;
+
+  if (routeLine) {
+    customerMap.removeLayer(routeLine);
+  }
+
+  routeLine = L.polyline([currentSenderCoords, currentRecipientCoords], {
+    color: '#3b82f6',
+    weight: 4,
+    dashArray: '8, 8',
+    opacity: 0.85
+  }).addTo(customerMap);
+
+  const bounds = L.latLngBounds([currentSenderCoords, currentRecipientCoords]);
+  customerMap.fitBounds(bounds, { padding: [40, 40] });
+}
+
 // 2. Calculate Tariff
 async function calculateTariff() {
   const respBox = document.getElementById('customerResponse');
   respBox.classList.add('active');
   respBox.innerText = "Mengajukan estimasi tarif...";
   
-  const payload = getOrderFormPayload();
   try {
+    const payload = await getOrderFormPayload();
     const data = await api.apiCalculateTariff(payload);
     respBox.innerText = JSON.stringify(data, null, 2);
   } catch (e) {
@@ -77,8 +223,8 @@ async function createOrder() {
   respBox.classList.add('active');
   respBox.innerText = "Membuat pesanan baru...";
   
-  const payload = getOrderFormPayload();
   try {
+    const payload = await getOrderFormPayload();
     const data = await api.apiCreateOrder(payload);
     respBox.innerText = JSON.stringify(data, null, 2);
     if (data.awb) {
@@ -90,23 +236,68 @@ async function createOrder() {
   }
 }
 
-function getOrderFormPayload() {
+// Tracking the last resolved address to prevent concurrent requests and rate limiting
+let lastSenderResolvedAddress = "Jl. Ganesha No.10, Kel. Lebak Siliwangi, Kec. Coblong, Kota Bandung";
+let lastRecipientResolvedAddress = "Jl. Jenderal Sudirman Kav. 21, Senayan, Jakarta Selatan";
+
+async function getOrderFormPayload() {
+  const senderCity = document.getElementById('senderCity').value;
+  const recipientCity = document.getElementById('recipientCity').value;
+
+  const senderAddress = document.getElementById('senderAddress').value;
+  const recipientAddress = document.getElementById('recipientAddress').value;
+
+  const defaultSenderCoords = LocationCoords[senderCity.toUpperCase()] || [-6.9175, 107.6191];
+  const defaultRecipientCoords = LocationCoords[recipientCity.toUpperCase()] || [-6.2088, 106.8456];
+
+  let senderCoords = currentSenderCoords;
+  let recipientCoords = currentRecipientCoords;
+
+  let geocodedSender = false;
+
+  // Only geocode sender if address has been modified
+  if (senderAddress !== lastSenderResolvedAddress) {
+    console.log(`Sender address changed, geocoding: "${senderAddress}"`);
+    senderCoords = await geocodeAddress(senderAddress, defaultSenderCoords);
+    currentSenderCoords = senderCoords;
+    lastSenderResolvedAddress = senderAddress;
+    document.getElementById('valSenderCoords').innerText = `${senderCoords[0].toFixed(6)}, ${senderCoords[1].toFixed(6)}`;
+    if (senderMarker) senderMarker.setLatLng(currentSenderCoords);
+    geocodedSender = true;
+  }
+
+  // Only geocode recipient if address has been modified
+  if (recipientAddress !== lastRecipientResolvedAddress) {
+    // Sleep 500ms to avoid Nominatim rate limiting if we just queried the sender
+    if (geocodedSender) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    console.log(`Recipient address changed, geocoding: "${recipientAddress}"`);
+    recipientCoords = await geocodeAddress(recipientAddress, defaultRecipientCoords);
+    currentRecipientCoords = recipientCoords;
+    lastRecipientResolvedAddress = recipientAddress;
+    document.getElementById('valRecipientCoords').innerText = `${recipientCoords[0].toFixed(6)}, ${recipientCoords[1].toFixed(6)}`;
+    if (recipientMarker) recipientMarker.setLatLng(currentRecipientCoords);
+  }
+
+  updateRoute();
+
   return {
     sender: {
       name: document.getElementById('senderName').value,
-      phone: "08123456789",
-      email: "pengirim@gmail.com",
-      full_address: "Alamat Pengirim",
-      city: document.getElementById('senderCity').value,
-      coordinate: { latitude: -6.8915, longitude: 107.6106 }
+      phone: document.getElementById('senderPhone').value,
+      email: document.getElementById('senderEmail').value,
+      full_address: senderAddress,
+      city: senderCity,
+      coordinate: { latitude: senderCoords[0], longitude: senderCoords[1] }
     },
     recipient: {
       name: document.getElementById('recipientName').value,
-      phone: "08987654321",
-      email: "penerima@gmail.com",
-      full_address: "Alamat Penerima",
-      city: document.getElementById('recipientCity').value,
-      coordinate: { latitude: -6.2088, longitude: 106.8456 }
+      phone: document.getElementById('recipientPhone').value,
+      email: document.getElementById('recipientEmail').value,
+      full_address: recipientAddress,
+      city: recipientCity,
+      coordinate: { latitude: recipientCoords[0], longitude: recipientCoords[1] }
     },
     package: {
       length: 30, width: 20, height: 10,
@@ -289,8 +480,102 @@ async function sendManualScan() {
   }
 }
 
+function setupAddressAutocomplete(inputId, suggestionsId, cityId, onSelectCoords) {
+  const input = document.getElementById(inputId);
+  const suggestionsContainer = document.getElementById(suggestionsId);
+  const citySelect = cityId ? document.getElementById(cityId) : null;
+  
+  if (!input || !suggestionsContainer) return;
+  
+  let debounceTimeout = null;
+  
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimeout);
+    const query = input.value.trim();
+    
+    if (query.length < 3) {
+      suggestionsContainer.style.display = 'none';
+      suggestionsContainer.innerHTML = '';
+      return;
+    }
+    
+    debounceTimeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=id&limit=5&format=json&addressdetails=1`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) return;
+        const results = await response.json();
+        
+        if (results.length === 0) {
+          suggestionsContainer.style.display = 'none';
+          suggestionsContainer.innerHTML = '';
+          return;
+        }
+        
+        suggestionsContainer.innerHTML = '';
+        results.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'suggestion-item';
+          
+          const name = item.name || item.display_name.split(',')[0];
+          const sub = item.display_name.replace(name + ', ', '');
+          
+          div.innerHTML = `
+            <div class="suggestion-item-main">${name}</div>
+            <div class="suggestion-item-sub">${sub}</div>
+          `;
+          
+          div.addEventListener('click', () => {
+            input.value = item.display_name;
+            suggestionsContainer.style.display = 'none';
+            
+            const lat = parseFloat(item.lat);
+            const lon = parseFloat(item.lon);
+            if (onSelectCoords) {
+              onSelectCoords(lat, lon);
+            }
+            
+            if (citySelect) {
+              const addr = item.address || {};
+              const regionText = JSON.stringify(addr).toLowerCase();
+              if (regionText.includes('jakarta')) {
+                citySelect.value = 'Jakarta';
+              } else if (regionText.includes('surabaya') || regionText.includes('jawa timur')) {
+                citySelect.value = 'Surabaya';
+              } else if (regionText.includes('bandung') || regionText.includes('jawa barat') || regionText.includes('banten')) {
+                citySelect.value = 'Bandung';
+              }
+            }
+          });
+          suggestionsContainer.appendChild(div);
+        });
+        suggestionsContainer.style.display = 'block';
+      } catch (e) {
+        console.error('Error fetching autocomplete suggestions:', e);
+      }
+    }, 400);
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (e.target !== input && e.target !== suggestionsContainer && !suggestionsContainer.contains(e.target)) {
+      suggestionsContainer.style.display = 'none';
+    }
+  });
+}
+
 // Bind module functions to the global window scope
-window.switchTab = ui.switchTab;
+window.switchTab = (tabName) => {
+  ui.switchTab(tabName);
+  if (tabName === 'customer') {
+    setTimeout(() => {
+      initCustomerMap();
+      if (customerMap) {
+        customerMap.invalidateSize();
+      }
+    }, 150);
+  }
+};
 window.calculateTariff = calculateTariff;
 window.createOrder = createOrder;
 window.registerDriver = registerDriver;
@@ -305,5 +590,24 @@ window.fetchMetrics = fetchMetrics;
 window.addEventListener('DOMContentLoaded', () => {
   fetchMetrics();
   ui.updateVariablesUI();
+  
+  setupAddressAutocomplete('senderAddress', 'senderSuggestions', 'senderCity', (lat, lon) => {
+    currentSenderCoords = [lat, lon];
+    document.getElementById('valSenderCoords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    if (senderMarker) {
+      senderMarker.setLatLng(currentSenderCoords);
+      updateRoute();
+    }
+  });
+  
+  setupAddressAutocomplete('recipientAddress', 'recipientSuggestions', 'recipientCity', (lat, lon) => {
+    currentRecipientCoords = [lat, lon];
+    document.getElementById('valRecipientCoords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    if (recipientMarker) {
+      recipientMarker.setLatLng(currentRecipientCoords);
+      updateRoute();
+    }
+  });
+
   setInterval(() => fetchMetrics(false), 5000);
 });

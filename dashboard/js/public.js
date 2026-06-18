@@ -28,6 +28,30 @@ export function switchPublicTab(tabName) {
   if (activeContent) activeContent.classList.add('active');
 }
 
+// Helper to Geocode address using OpenStreetMap Nominatim API
+async function geocodeAddress(address, fallbackCoords) {
+  if (!address || address.trim() === "") return fallbackCoords;
+  try {
+    const encodedAddress = encodeURIComponent(address + ", Indonesia");
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodedAddress}&format=json&limit=1`, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    if (!response.ok) throw new Error("Geocoding network error");
+    const results = await response.json();
+    if (results && results.length > 0) {
+      const lat = parseFloat(results[0].lat);
+      const lon = parseFloat(results[0].lon);
+      console.log(`Geocoded address "${address}" to: [${lat}, ${lon}]`);
+      return [lat, lon];
+    }
+  } catch (e) {
+    console.warn("Geocoding failed, falling back to default city coordinates:", e);
+  }
+  return fallbackCoords;
+}
+
 // Calculate Tariff
 async function calculateTariff() {
   const resultDiv = document.getElementById('tariffResult');
@@ -35,22 +59,37 @@ async function calculateTariff() {
   resultDiv.className = 'info-result';
   resultDiv.innerHTML = '<em>Sedang menghitung tarif pengiriman...</em>';
   
+  const senderCity = document.getElementById('senderCity').value;
+  const recipientCity = document.getElementById('recipientCity').value;
+
+  const senderAddress = document.getElementById('senderAddress').value;
+  const recipientAddress = document.getElementById('recipientAddress').value;
+
+  const defaultSenderCoords = LocationCoords[senderCity.toUpperCase()] || [-6.9175, 107.6191];
+  const defaultRecipientCoords = LocationCoords[recipientCity.toUpperCase()] || [-6.2088, 106.8456];
+
+  // Geocode optional addresses
+  const [senderCoords, recipientCoords] = await Promise.all([
+    geocodeAddress(senderAddress, defaultSenderCoords),
+    geocodeAddress(recipientAddress, defaultRecipientCoords)
+  ]);
+
   const payload = {
     sender: {
       name: "Pengirim Publik",
       phone: "08123456789",
       email: "pengirim@gmail.com",
-      full_address: "Alamat Pengirim",
-      city: document.getElementById('senderCity').value,
-      coordinate: { latitude: -6.8915, longitude: 107.6106 }
+      full_address: senderAddress || "Alamat Pengirim",
+      city: senderCity,
+      coordinate: { latitude: senderCoords[0], longitude: senderCoords[1] }
     },
     recipient: {
       name: "Penerima Publik",
       phone: "08987654321",
       email: "penerima@gmail.com",
-      full_address: "Alamat Penerima",
-      city: document.getElementById('recipientCity').value,
-      coordinate: { latitude: -6.2088, longitude: 106.8456 }
+      full_address: recipientAddress || "Alamat Penerima",
+      city: recipientCity,
+      coordinate: { latitude: recipientCoords[0], longitude: recipientCoords[1] }
     },
     package: {
       length: 10, width: 10, height: 10,
@@ -181,7 +220,90 @@ async function trackAwb() {
   }
 }
 
+function setupAddressAutocomplete(inputId, suggestionsId, cityId) {
+  const input = document.getElementById(inputId);
+  const suggestionsContainer = document.getElementById(suggestionsId);
+  const citySelect = cityId ? document.getElementById(cityId) : null;
+  
+  if (!input || !suggestionsContainer) return;
+  
+  let debounceTimeout = null;
+  
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimeout);
+    const query = input.value.trim();
+    
+    if (query.length < 3) {
+      suggestionsContainer.style.display = 'none';
+      suggestionsContainer.innerHTML = '';
+      return;
+    }
+    
+    debounceTimeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=id&limit=5&format=json&addressdetails=1`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) return;
+        const results = await response.json();
+        
+        if (results.length === 0) {
+          suggestionsContainer.style.display = 'none';
+          suggestionsContainer.innerHTML = '';
+          return;
+        }
+        
+        suggestionsContainer.innerHTML = '';
+        results.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'suggestion-item';
+          
+          const name = item.name || item.display_name.split(',')[0];
+          const sub = item.display_name.replace(name + ', ', '');
+          
+          div.innerHTML = `
+            <div class="suggestion-item-main">${name}</div>
+            <div class="suggestion-item-sub">${sub}</div>
+          `;
+          
+          div.addEventListener('click', () => {
+            input.value = item.display_name;
+            suggestionsContainer.style.display = 'none';
+            
+            if (citySelect) {
+              const addr = item.address || {};
+              const regionText = JSON.stringify(addr).toLowerCase();
+              if (regionText.includes('jakarta')) {
+                citySelect.value = 'Jakarta';
+              } else if (regionText.includes('surabaya') || regionText.includes('jawa timur')) {
+                citySelect.value = 'Surabaya';
+              } else if (regionText.includes('bandung') || regionText.includes('jawa barat') || regionText.includes('banten')) {
+                citySelect.value = 'Bandung';
+              }
+            }
+          });
+          suggestionsContainer.appendChild(div);
+        });
+        suggestionsContainer.style.display = 'block';
+      } catch (e) {
+        console.error('Error fetching autocomplete suggestions:', e);
+      }
+    }, 400);
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (e.target !== input && e.target !== suggestionsContainer && !suggestionsContainer.contains(e.target)) {
+      suggestionsContainer.style.display = 'none';
+    }
+  });
+}
+
 // Global scope binding
 window.switchPublicTab = switchPublicTab;
 window.calculateTariff = calculateTariff;
 window.trackAwb = trackAwb;
+
+window.addEventListener('DOMContentLoaded', () => {
+  setupAddressAutocomplete('senderAddress', 'senderSuggestions', 'senderCity');
+  setupAddressAutocomplete('recipientAddress', 'recipientSuggestions', 'recipientCity');
+});

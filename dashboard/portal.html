@@ -152,76 +152,125 @@
       <h2 class="page-title">Customer Desk Portal</h2>
       <p class="page-subtitle">Simulasi kalkulasi tarif dan pembuatan pesanan baru (Order & Tariff Service)</p>
 
-      <div class="glass-card">
-        <div class="alert alert-success" id="customerAlert">Order berhasil dibuat! Resi baru telah disimpan di variabel aktif.</div>
-        
-        <form id="orderForm">
-          <h3 class="variables-title" style="margin-bottom: 1rem;">1. Profil Pengirim (Sender)</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Nama Pengirim</label>
-              <input type="text" id="senderName" value="Ahmad Dhani" required>
+      <div class="customer-desk-grid">
+        <!-- Form Panel (Left) -->
+        <div class="glass-card" style="margin-bottom: 0;">
+          <div class="alert alert-success" id="customerAlert">Order berhasil dibuat! Resi baru telah disimpan di variabel aktif.</div>
+          <form id="orderForm">
+            <h3 class="variables-title" style="margin-bottom: 1rem;">1. Profil Pengirim (Sender)</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Nama Pengirim</label>
+                <input type="text" id="senderName" value="Ahmad Dhani" required>
+              </div>
+              <div class="form-group">
+                <label>Telepon Pengirim</label>
+                <input type="text" id="senderPhone" value="08123456789" required>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Kota Asal</label>
-              <select id="senderCity" required>
-                <option value="Bandung" selected>Bandung (Jawa Barat)</option>
-                <option value="Jakarta">Jakarta (DKI Jakarta)</option>
-                <option value="Surabaya">Surabaya (Jawa Timur)</option>
-              </select>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Email Pengirim</label>
+                <input type="email" id="senderEmail" value="pengirim@gmail.com" required>
+              </div>
+              <div class="form-group">
+                <label>Kota Asal (Transit Hub Terdekat)</label>
+                <select id="senderCity" required>
+                  <option value="Bandung" selected>Bandung (Jawa Barat)</option>
+                  <option value="Jakarta">Jakarta (DKI Jakarta)</option>
+                  <option value="Surabaya">Surabaya (Jawa Timur)</option>
+                </select>
+              </div>
             </div>
-          </div>
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label>Alamat Lengkap Pengirim (Bisa diisi alamat real di Indonesia)</label>
+              <div class="address-autocomplete-wrapper">
+                <input type="text" id="senderAddress" placeholder="Ketik nama jalan/gedung/daerah di Indonesia..." autocomplete="off" value="Jl. Ganesha No.10, Kel. Lebak Siliwangi, Kec. Coblong, Kota Bandung" required>
+                <div id="senderSuggestions" class="suggestions-dropdown" style="display: none;"></div>
+              </div>
+            </div>
 
-          <h3 class="variables-title" style="margin-bottom: 1rem; margin-top: 1rem;">2. Profil Penerima (Recipient)</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Nama Penerima</label>
-              <input type="text" id="recipientName" value="Maia Estianty" required>
+            <h3 class="variables-title" style="margin-bottom: 1rem; margin-top: 1rem;">2. Profil Penerima (Recipient)</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Nama Penerima</label>
+                <input type="text" id="recipientName" value="Maia Estianty" required>
+              </div>
+              <div class="form-group">
+                <label>Telepon Penerima</label>
+                <input type="text" id="recipientPhone" value="08987654321" required>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Kota Tujuan</label>
-              <select id="recipientCity" required>
-                <option value="Jakarta" selected>Jakarta (DKI Jakarta)</option>
-                <option value="Bandung">Bandung (Jawa Barat)</option>
-                <option value="Surabaya">Surabaya (Jawa Timur)</option>
-              </select>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Email Penerima</label>
+                <input type="email" id="recipientEmail" value="penerima@gmail.com" required>
+              </div>
+              <div class="form-group">
+                <label>Kota Tujuan (Transit Hub Terdekat)</label>
+                <select id="recipientCity" required>
+                  <option value="Jakarta" selected>Jakarta (DKI Jakarta)</option>
+                  <option value="Bandung">Bandung (Jawa Barat)</option>
+                  <option value="Surabaya">Surabaya (Jawa Timur)</option>
+                </select>
+              </div>
             </div>
-          </div>
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label>Alamat Lengkap Penerima (Bisa diisi alamat real di Indonesia)</label>
+              <div class="address-autocomplete-wrapper">
+                <input type="text" id="recipientAddress" placeholder="Ketik nama jalan/gedung/daerah di Indonesia..." autocomplete="off" value="Jl. Jenderal Sudirman Kav. 21, Senayan, Jakarta Selatan" required>
+                <div id="recipientSuggestions" class="suggestions-dropdown" style="display: none;"></div>
+              </div>
+            </div>
 
-          <h3 class="variables-title" style="margin-bottom: 1rem; margin-top: 1rem;">3. Deskripsi Paket & Layanan</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Berat Aktual Paket (Kg)</label>
-              <input type="number" id="pkgWeight" value="2.5" step="0.1" required>
+            <h3 class="variables-title" style="margin-bottom: 1rem; margin-top: 1rem;">3. Deskripsi Paket & Layanan</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Berat Aktual Paket (Kg)</label>
+                <input type="number" id="pkgWeight" value="2.5" step="0.1" required>
+              </div>
+              <div class="form-group">
+                <label>Tipe Layanan</label>
+                <select id="pkgService" required>
+                  <option value="EXPRESS" selected>EXPRESS (Kirim Kilat)</option>
+                  <option value="REGULAR">REGULAR (Standar)</option>
+                  <option value="CARGO">CARGO (Kargo Berat)</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Tipe Layanan</label>
-              <select id="pkgService" required>
-                <option value="EXPRESS" selected>EXPRESS (Kirim Kilat)</option>
-                <option value="REGULAR">REGULAR (Standar)</option>
-                <option value="CARGO">CARGO (Kargo Berat)</option>
-              </select>
-            </div>
-          </div>
 
-          <div class="form-grid">
-            <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 1rem;">
-              <input type="checkbox" id="hasInsurance" style="width: auto;" checked>
-              <label for="hasInsurance">Gunakan Asuransi Pengiriman</label>
+            <div class="form-grid">
+              <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+                <input type="checkbox" id="hasInsurance" style="width: auto;" checked>
+                <label for="hasInsurance">Gunakan Asuransi Pengiriman</label>
+              </div>
+              <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+                <input type="checkbox" id="hasPacking" style="width: auto;">
+                <label for="hasPacking">Gunakan Packing Kayu</label>
+              </div>
             </div>
-            <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 1rem;">
-              <input type="checkbox" id="hasPacking" style="width: auto;">
-              <label for="hasPacking">Gunakan Packing Kayu</label>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="calculateTariff()">Cek Estimasi Tarif</button>
+              <button type="button" class="btn" onclick="createOrder()">Buat Pesanan Baru</button>
             </div>
-          </div>
+          </form>
 
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="calculateTariff()">Cek Estimasi Tarif</button>
-            <button type="button" class="btn" onclick="createOrder()">Buat Pesanan Baru</button>
-          </div>
-        </form>
+          <div class="response-box" id="customerResponse"></div>
+        </div>
 
-        <div class="response-box" id="customerResponse"></div>
+        <!-- Interactive Map Panel (Right) -->
+        <div class="glass-card" style="margin-bottom: 0; display: flex; flex-direction: column; height: 100%;">
+          <h3 class="variables-title" style="margin-bottom: 1rem;">4. Peta Rute & Pin Koordinat</h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.45;">
+            Gunakan peta interaktif di bawah untuk meninjau lokasi penjemputan dan pengantaran paket. Anda dapat menggeser pin biru <b>(Asal)</b> atau pin merah <b>(Tujuan)</b> untuk menyesuaikan lokasi secara manual.
+          </p>
+          <div id="customerMap" style="height: 400px; border-radius: 12px; border: 1px solid var(--border-glass); z-index: 10;"></div>
+          <div id="routeInfoPanel" style="margin-top: 1.25rem; font-size: 0.9rem; border-top: 1px solid var(--border-glass); padding-top: 1rem; display: flex; flex-direction: column; gap: 0.6rem;">
+            <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Koordinat Pengirim (Biru):</span> <span id="valSenderCoords" style="font-family: monospace; color: var(--brand-accent); font-weight: 600;">-6.9175, 107.6191</span></div>
+            <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Koordinat Penerima (Merah):</span> <span id="valRecipientCoords" style="font-family: monospace; color: var(--color-danger); font-weight: 600;">-6.2088, 106.8456</span></div>
+          </div>
+        </div>
       </div>
     </section>
 

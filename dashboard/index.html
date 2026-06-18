@@ -471,7 +471,7 @@
       <form id="publicTariffForm" onsubmit="event.preventDefault();">
         <div class="form-row">
           <div class="form-group">
-            <label>Kota Asal</label>
+            <label>Kota Asal (Transit Hub Terdekat)</label>
             <select id="senderCity">
               <option value="Bandung" selected>Bandung (Jawa Barat)</option>
               <option value="Jakarta">Jakarta (DKI Jakarta)</option>
@@ -479,12 +479,29 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Kota Tujuan</label>
+            <label>Kota Tujuan (Transit Hub Terdekat)</label>
             <select id="recipientCity">
               <option value="Jakarta" selected>Jakarta (DKI Jakarta)</option>
               <option value="Bandung">Bandung (Jawa Barat)</option>
               <option value="Surabaya">Surabaya (Jawa Timur)</option>
             </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Alamat Lengkap Asal (Opsional, untuk lokasi spesifik)</label>
+            <div class="address-autocomplete-wrapper">
+              <input type="text" id="senderAddress" placeholder="Contoh: Jl. Dipati Ukur No. 35, Bandung" autocomplete="off">
+              <div id="senderSuggestions" class="suggestions-dropdown" style="display: none;"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Alamat Lengkap Tujuan (Opsional, untuk lokasi spesifik)</label>
+            <div class="address-autocomplete-wrapper">
+              <input type="text" id="recipientAddress" placeholder="Contoh: Jl. Gatot Subroto No. 10, Jakarta Selatan" autocomplete="off">
+              <div id="recipientSuggestions" class="suggestions-dropdown" style="display: none;"></div>
+            </div>
           </div>
         </div>
 

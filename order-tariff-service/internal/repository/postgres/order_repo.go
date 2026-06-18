@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"database/sql"
-	"math"
 	"order-tariff-service/internal/domain"
 	"order-tariff-service/internal/repository/redis"
 	"strings"
@@ -90,24 +89,24 @@ func (r *OrderRepositoryImpl) SaveOrder(req domain.OrderRequest, res domain.Orde
 }
 
 func (r *OrderRepositoryImpl) GetDistance(origin, dest domain.Koordinat) (float64, error) {
-	// Formula Haversine untuk menghitung jarak antara dua titik koordinat GPS
-	const R = 6371.0 // Radius bumi dalam kilometer
+	var distanceKM float64
 
-	lat1 := origin.Latitude * math.Pi / 180.0
-	lng1 := origin.Longitude * math.Pi / 180.0
-	lat2 := dest.Latitude * math.Pi / 180.0
-	lng2 := dest.Longitude * math.Pi / 180.0
+	// Query menggunakan ST_Distance dengan tipe data geography (spheroid WGS84)
+	// ST_Distance mengembalikan satuan meter, sehingga dibagi 1000.0 agar menjadi KM
+	query := `
+		SELECT ST_Distance(
+			ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+			ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography
+		) / 1000.0 AS distance_km;
+	`
 
-	dlat := lat2 - lat1
-	dlng := lng2 - lng1
+	// PostGIS ST_MakePoint menerima parameter: Longitude dahulu baru Latitude
+	err := r.db.QueryRow(query, origin.Longitude, origin.Latitude, dest.Longitude, dest.Latitude).Scan(&distanceKM)
+	if err != nil {
+		return 0.0, err
+	}
 
-	a := math.Sin(dlat/2)*math.Sin(dlat/2) +
-		math.Cos(lat1)*math.Cos(lat2)*
-			math.Sin(dlng/2)*math.Sin(dlng/2)
-	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-
-	distance := R * c
-	return distance, nil
+	return distanceKM, nil
 }
 
 func (r *OrderRepositoryImpl) GetPricingFromCache(key string) (float64, error) {

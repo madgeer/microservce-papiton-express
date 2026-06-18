@@ -30,12 +30,13 @@ func NewOrderEventPublisher(topic string) domain.OrderEventPublisher {
 	// Mendukung comma-separated list untuk Kafka cluster multi-broker
 	brokerList := strings.Split(broker, ",")
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(brokerList...),
-		Topic:        topic,
-		Balancer:     &kafka.LeastBytes{},
-		WriteTimeout: 1 * time.Second,
-		RequiredAcks: kafka.RequireOne, // Minimal 1 broker mengkonfirmasi — lebih aman dengan cluster
-		Async:        true,
+		Addr:                   kafka.TCP(brokerList...),
+		Topic:                  topic,
+		Balancer:               &kafka.LeastBytes{},
+		WriteTimeout:           1 * time.Second,
+		RequiredAcks:           kafka.RequireOne, // Minimal 1 broker mengkonfirmasi — lebih aman dengan cluster
+		Async:                  true,
+		AllowAutoTopicCreation: true,
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			log.Printf("[Kafka Producer Warning] Kesalahan asinkron Kafka: "+msg, args...)
 		}),

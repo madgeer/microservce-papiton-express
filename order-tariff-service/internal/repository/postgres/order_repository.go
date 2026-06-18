@@ -33,7 +33,16 @@ func InitDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("Ping gagal, Database tidak merespon:%v", err)
 	}
 
-	fmt.Println("Sukse! Terhubung ke PostgresSQL")
+	fmt.Println("Sukses! Terhubung ke PostgreSQL")
+
+	// Aktifkan ekstensi PostGIS jika belum ada
+	_, err = DB.Exec("CREATE EXTENSION IF NOT EXISTS postgis;")
+	if err != nil {
+		fmt.Printf("Peringatan: Gagal mengaktifkan ekstensi PostGIS: %v\n", err)
+	} else {
+		fmt.Println("Ekstensi PostGIS berhasil diaktifkan / sudah siap!")
+	}
+
 	return DB, nil
 }
 

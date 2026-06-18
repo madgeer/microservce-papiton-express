@@ -27,12 +27,13 @@ func NewDispatchEventPublisher(topic string) domain.DispatchEventPublisher {
 
 	brokerList := strings.Split(broker, ",")
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(brokerList...),
-		Topic:        topic,
-		Balancer:     &kafka.LeastBytes{},
-		WriteTimeout: 1 * time.Second,
-		RequiredAcks: kafka.RequireOne,
-		Async:        true,
+		Addr:                   kafka.TCP(brokerList...),
+		Topic:                  topic,
+		Balancer:               &kafka.LeastBytes{},
+		WriteTimeout:           1 * time.Second,
+		RequiredAcks:           kafka.RequireOne,
+		Async:                  true,
+		AllowAutoTopicCreation: true,
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			log.Printf("[Shipping Kafka Producer Warning] Kesalahan asinkron Kafka: "+msg, args...)
 		}),
