@@ -22,7 +22,17 @@ const LocationCoords = {
   'JAKARTA': [-6.2088, 106.8456],
   'WH-SUB': [-7.2575, 112.7521],
   'SURABAYA': [-7.2575, 112.7521],
-  'WH-UPI': [-6.8619, 107.5944] // Kampus UPI Bandung
+  'WH-UPI': [-6.8619, 107.5944], // Kampus UPI Bandung
+  'WH-YOG': [-7.7956, 110.3695],
+  'YOGYAKARTA': [-7.7956, 110.3695],
+  'WH-SEM': [-6.9932, 110.4203],
+  'SEMARANG': [-6.9932, 110.4203],
+  'WH-MED': [3.5952, 98.6722],
+  'MEDAN': [3.5952, 98.6722],
+  'WH-MAK': [-5.1476, 119.4327],
+  'MAKASSAR': [-5.1476, 119.4327],
+  'WH-DPS': [-8.6705, 115.2126],
+  'DENPASAR': [-8.6705, 115.2126]
 };
 
 // Fallback Mock Data in case DWH backend is offline
