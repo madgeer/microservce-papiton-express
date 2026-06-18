@@ -1,0 +1,247 @@
+# --- WAREHOUSE DB ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: warehouse-db
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: warehouse-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warehouse-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: warehouse-db
+  template:
+    metadata:
+      labels:
+        app: warehouse-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: POSTGRES_DB
+          value: "papiton_warehouse"
+
+# --- SHIPPING DB ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping-db
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: shipping-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shipping-db
+  template:
+    metadata:
+      labels:
+        app: shipping-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_USER
+          value: "user"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
+          value: "shipping_test_db"
+
+# --- ORDER DB (PostGIS) ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-db
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: order-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-db
+  template:
+    metadata:
+      labels:
+        app: order-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgis/postgis:15-3.3-alpine
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "admin123"
+        - name: POSTGRES_DB
+          value: "papiton_order_tariff_service_db"
+
+# --- NOTIFICATION DB ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-db
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: notification-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-db
+  template:
+    metadata:
+      labels:
+        app: notification-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_USER
+          value: "user"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
+          value: "notification_db"
+
+# --- DWH DB ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dwh-db
+spec:
+  ports:
+  - port: 5432
+  selector:
+    app: dwh-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dwh-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dwh-db
+  template:
+    metadata:
+      labels:
+        app: dwh-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "dwhpassword"
+        - name: POSTGRES_DB
+          value: "papiton_dwh"
+
+# --- SHIPPING MONGO ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping-mongo
+spec:
+  ports:
+  - port: 27017
+  selector:
+    app: shipping-mongo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping-mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shipping-mongo
+  template:
+    metadata:
+      labels:
+        app: shipping-mongo
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:6-jammy
+        ports:
+        - containerPort: 27017
+
+# --- TRACKING MONGO ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracking-mongo
+spec:
+  ports:
+  - port: 27017
+  selector:
+    app: tracking-mongo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking-mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracking-mongo
+  template:
+    metadata:
+      labels:
+        app: tracking-mongo
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:6-jammy
+        ports:
+        - containerPort: 27017

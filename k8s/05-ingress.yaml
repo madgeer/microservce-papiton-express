@@ -1,0 +1,94 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: papiton-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - http:
+      paths:
+      # --- ORDER SERVICE ---
+      - path: /api/v1/tariff
+        pathType: Prefix
+        backend:
+          service:
+            name: order-app
+            port:
+              number: 80
+      - path: /api/v1/orders
+        pathType: Prefix
+        backend:
+          service:
+            name: order-app
+            port:
+              number: 80
+              
+      # --- SHIPPING SERVICE ---
+      - path: /api/v1/couriers
+        pathType: Prefix
+        backend:
+          service:
+            name: shipping-app
+            port:
+              number: 80
+      - path: /api/v1/dispatches
+        pathType: Prefix
+        backend:
+          service:
+            name: shipping-app
+            port:
+              number: 80
+              
+      # --- WAREHOUSE SERVICE ---
+      - path: /api/v1/inbound
+        pathType: Prefix
+        backend:
+          service:
+            name: warehouse-app
+            port:
+              number: 80
+      - path: /api/v1/manifest
+        pathType: Prefix
+        backend:
+          service:
+            name: warehouse-app
+            port:
+              number: 80
+              
+      # --- TRACKING SERVICE ---
+      - path: /api/v1/tracking
+        pathType: Prefix
+        backend:
+          service:
+            name: tracking-app
+            port:
+              number: 80
+              
+      # --- NOTIFICATION SERVICE ---
+      - path: /api/v1/notifications
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-app
+            port:
+              number: 80
+              
+      # --- ETL SERVICE ---
+      - path: /api/v1/etl
+        pathType: Prefix
+        backend:
+          service:
+            name: etl-service
+            port:
+              number: 80
+              
+      # --- DASHBOARD (Default fallback) ---
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dashboard-app
+            port:
+              number: 80

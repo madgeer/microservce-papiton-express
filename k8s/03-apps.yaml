@@ -1,0 +1,294 @@
+# --- WAREHOUSE SERVICE ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: warehouse-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: warehouse-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warehouse-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: warehouse-app
+  template:
+    metadata:
+      labels:
+        app: warehouse-app
+    spec:
+      containers:
+      - name: warehouse-app
+        image: papitonregistry.azurecr.io/warehouse-and-inventory-service:v1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "warehouse-db"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "postgres"
+        - name: DB_NAME
+          value: "papiton_warehouse"
+        - name: DB_PORT
+          value: "5432"
+        - name: KAFKA_BROKER
+          value: "kafka:9092"
+
+# --- SHIPPING SERVICE ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: shipping-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shipping-app
+  template:
+    metadata:
+      labels:
+        app: shipping-app
+    spec:
+      containers:
+      - name: shipping-app
+        image: papitonregistry.azurecr.io/shipping-service:v1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "shipping-db"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "user"
+        - name: DB_PASSWORD
+          value: "password"
+        - name: DB_NAME
+          value: "shipping_test_db"
+        - name: MONGO_URI
+          value: "mongodb://shipping-mongo:27017"
+        - name: KAFKA_BROKER
+          value: "kafka:9092"
+
+# --- ORDER & TARIFF SERVICE ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: order-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-app
+  template:
+    metadata:
+      labels:
+        app: order-app
+    spec:
+      containers:
+      - name: order-app
+        image: papitonregistry.azurecr.io/order-tariff-service:v1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "order-db"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "admin123"
+        - name: DB_NAME
+          value: "papiton_order_tariff_service_db"
+        - name: DB_PORT
+          value: "5432"
+        - name: REDIS_HOST
+          value: "order-redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: KAFKA_BROKER
+          value: "kafka:9092"
+
+# --- TRACKING & LOG EVENT SERVICE ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracking-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: tracking-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracking-app
+  template:
+    metadata:
+      labels:
+        app: tracking-app
+    spec:
+      containers:
+      - name: tracking-app
+        image: papitonregistry.azurecr.io/tracking-and-logevent-service:v1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MONGO_URI
+          value: "mongodb://tracking-mongo:27017"
+        - name: DB_NAME
+          value: "tracking_db"
+        - name: KAFKA_BROKER
+          value: "kafka:9092"
+
+# --- NOTIFICATION SERVICE ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: notification-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-app
+  template:
+    metadata:
+      labels:
+        app: notification-app
+    spec:
+      containers:
+      - name: notification-app
+        image: papitonregistry.azurecr.io/notification-and-messaging-service:v1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:9092"
+        - name: KAFKA_GROUP_ID
+          value: "notification-service-group"
+        - name: DB_HOST
+          value: "notification-db"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "user"
+        - name: DB_PASSWORD
+          value: "password"
+        - name: DB_NAME
+          value: "notification_db"
+
+# --- ETL PIPELINE SERVICE ---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etl-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8085
+  selector:
+    app: etl-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etl-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etl-service
+  template:
+    metadata:
+      labels:
+        app: etl-service
+    spec:
+      containers:
+      - name: etl-service
+        image: papitonregistry.azurecr.io/etl-pipeline:v1
+        ports:
+        - containerPort: 8085
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:9092"
+        - name: ORDER_DB_URL
+          value: "postgresql://postgres:admin123@order-db:5432/papiton_order_tariff_service_db"
+        - name: SHIPPING_DB_URL
+          value: "postgresql://user:password@shipping-db:5432/shipping_test_db"
+        - name: WAREHOUSE_DB_URL
+          value: "postgresql://postgres:postgres@warehouse-db:5432/papiton_warehouse"
+        - name: DWH_DB_URL
+          value: "postgresql://postgres:dwhpassword@dwh-db:5432/papiton_dwh"
+        - name: MONGO_URI
+          value: "mongodb://tracking-mongo:27017"
+        - name: MONGO_DB_NAME
+          value: "tracking_db"
+        - name: ORDER_SERVICE_URL
+          value: "http://order-app:80"
+        - name: SHIPPING_SERVICE_URL
+          value: "http://shipping-app:80"
+        - name: WAREHOUSE_SERVICE_URL
+          value: "http://warehouse-app:80"
+        - name: TRACKING_SERVICE_URL
+          value: "http://tracking-app:80"
+        - name: ETL_WORKERS
+          value: "4"
