@@ -31,7 +31,7 @@ Pastikan perangkat Anda sudah terpasang:
 
 ---
 
-## 🚀 Cara Menjalankan Aplikasi
+## 🚀 Cara Menjalankan Aplikasi & Akses Web Portal
 
 1.  **Clone repositori** dan pastikan Anda berada di direktori utama proyek.
 2.  **Jalankan seluruh layanan menggunakan Docker Compose**:
@@ -42,8 +42,21 @@ Pastikan perangkat Anda sudah terpasang:
     ```bash
     docker compose ps
     ```
-4.  **Buka Dashboard Portal**:
-    Buka file [dashboard/index.html](file:///D:/Kuliah/semester%204/cloud/tubes/microservice-papiton-express/papiton-express/dashboard/index.html) langsung di browser Anda.
+4.  **Jalankan Server HTTP Lokal untuk Frontend** (Wajib dilakukan karena browser memblokir JavaScript ES6 Module jika dibuka langsung lewat berkas file://):
+    *   **Metode A: Menggunakan VS Code Live Server (Direkomendasikan)**:
+        1. Buka folder proyek `papiton-express` di VS Code.
+        2. Klik tombol **Go Live** di bilah status kanan bawah VS Code.
+        3. Browser akan otomatis membuka alamat `http://127.0.0.1:5500/dashboard/`.
+    *   **Metode B: Menggunakan npx (Node.js)**:
+        Jalankan perintah berikut di terminal root proyek:
+        ```bash
+        npx http-server ./dashboard -p 5500 --cors
+        ```
+        Lalu buka `http://localhost:5500/` di browser Anda.
+
+5.  **Tautan Akses Halaman Web**:
+    *   **Halaman Publik Konsumen**: `http://localhost:5500/index.html` (Melacak paket, peta live GPS, cek ongkir)
+    *   **Portal Operasional Internal Staf**: `http://localhost:5500/portal.html` (Analitik DWH, Inbound scan, auto-dispatch)
 
 ---
 
