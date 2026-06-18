@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	
 	"warehouse-inventory-service/internal/model"
@@ -70,7 +72,8 @@ func (h *ManifestHandler) HandleAddToManifest(w http.ResponseWriter, r *http.Req
 
 	err := h.svc.AddToManifest(req.ManifestID, req.Resi)
 	if err != nil {
-		http.Error(w, `{"message":"Gagal menambah paket ke manifest"}`, http.StatusInternalServerError)
+		log.Printf("ERROR HandleAddToManifest: %v\n", err)
+		http.Error(w, fmt.Sprintf(`{"message":"Gagal menambah paket ke manifest: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 

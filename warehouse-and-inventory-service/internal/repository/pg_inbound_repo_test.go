@@ -16,9 +16,9 @@ func TestPostgresInboundRepo_UpdateStockStatus_Mock(t *testing.T) {
 	// Inisialisasi PostgresInboundRepo tapi memasukkan 'db' palsu (mock)
 	repo := NewPostgresInboundRepo(db)
 
-	// Kita ekspektasikan fungsi UpdateStockStatus akan mengeksekusi query UPDATE
-	mock.ExpectExec("UPDATE inbound_packages SET status = \\$1 WHERE resi = \\$2").
-		WithArgs("AT_HUB", "RESI-001").
+	// Kita ekspektasikan fungsi UpdateStockStatus akan mengeksekusi query UPSERT
+	mock.ExpectExec("INSERT INTO inbound_packages").
+		WithArgs("RESI-001", "WH-UPI", "AT_HUB").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Jalankan fungsinya
