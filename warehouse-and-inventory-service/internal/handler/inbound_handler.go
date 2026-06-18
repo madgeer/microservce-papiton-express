@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"warehouse-inventory-service/internal/model"
 	"warehouse-inventory-service/internal/service"
@@ -56,10 +58,11 @@ func (h *InboundHandler) HandleProcessInbound(w http.ResponseWriter, r *http.Req
 	err := h.svc.ProcessInbound(req.Resi, req.WarehouseID)
 	if err != nil {
 		// Menangani error yang dikembalikan oleh layer Service
+		log.Printf("ERROR HandleProcessInbound: %v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(model.InboundResponse{
 			Status:  http.StatusInternalServerError,
-			Message: "Gagal memproses inbound",
+			Message: fmt.Sprintf("Gagal memproses inbound: %v", err),
 		})
 		return
 	}

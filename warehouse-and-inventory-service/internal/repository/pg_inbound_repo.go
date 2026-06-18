@@ -18,7 +18,12 @@ func NewPostgresInboundRepo(db *sql.DB) *PostgresInboundRepo {
 }
 
 func (r *PostgresInboundRepo) UpdateStockStatus(resi string, warehouseID string, status string) error {
-	_, err := r.db.Exec("UPDATE inbound_packages SET status = $1 WHERE resi = $2", status, resi)
+	_, err := r.db.Exec(`
+		INSERT INTO inbound_packages (resi, warehouse_id, status, updated_at)
+		VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+		ON CONFLICT (resi)
+		DO UPDATE SET status = EXCLUDED.status, warehouse_id = EXCLUDED.warehouse_id, updated_at = EXCLUDED.updated_at
+	`, resi, warehouseID, status)
 	return err
 }
 
