@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/consumer"
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/handler"
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/repository"
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/repository/kafka"
@@ -169,7 +170,27 @@ func main() {
 	trackingHandler := handler.NewTrackingAPIHandler(trackingSvc)
 	logEventAPIHandler := handler.NewLogEventAPIHandler(logEventSvc)
 
-	// 3. Mendaftarkan HTTP Route Handler
+	// 3. Setup Kafka Consumer untuk pelacakan asinkron
+	kafkaBroker := getEnv("KAFKA_BROKER", "localhost:9092")
+	kafkaGroupID := getEnv("KAFKA_GROUP_ID", "tracking-service-group")
+	topics := []string{
+		"papiton.events.order",
+		"papiton.events.shipping",
+		"papiton.events.tracking",
+	}
+	kafkaConsumer := consumer.NewKafkaConsumer(kafkaBroker, kafkaGroupID, topics, logEventRepo, trackingRepo)
+
+	ctxConsumer, cancelConsumer := context.WithCancel(ctx)
+	defer cancelConsumer()
+
+	go func() {
+		log.Println("PAPITON Express - Tracking Event Consumer (Kafka) dimulai")
+		if err := kafkaConsumer.Start(ctxConsumer); err != nil {
+			log.Printf("Kafka consumer error: %v", err)
+		}
+	}()
+
+	// 4. Mendaftarkan HTTP Route Handler
 	chain := func(h http.HandlerFunc) http.HandlerFunc {
 		return withCorrelationID(requireAPIKey(apiKey, withRateLimit(rl, h)))
 	}
@@ -183,7 +204,7 @@ func main() {
 	http.HandleFunc("/api/v1/tracking/scan", chain(logEventAPIHandler.ScanLog))
 	http.HandleFunc("/api/v1/tracking/logs", chain(logEventAPIHandler.GetLogs))
 
-	// 4. HTTP Server dengan timeout
+	// 5. HTTP Server dengan timeout
 	port := getEnv("PORT", "8080")
 	srv := &http.Server{
 		Addr:         ":" + port,
@@ -199,12 +220,18 @@ func main() {
 		}
 	}()
 
-	// 5. Graceful shutdown
+	// 6. Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Menerima sinyal shutdown, menghentikan server...")
+	cancelConsumer()
+	log.Println("Menutup Kafka Consumer...")
+	if err := kafkaConsumer.Close(); err != nil {
+		log.Printf("Gagal menutup kafkaConsumer: %v", err)
+	}
+
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {

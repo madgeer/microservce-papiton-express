@@ -83,7 +83,7 @@ func TestNotificationFlow_PackageFailed_UsesEmail(t *testing.T) {
 		EventType: model.EventPackageFailed,
 		UserID:    "user-functional-002",
 		AWB:       "PAPITON-FUNC-002",
-		Metadata:  map[string]string{"reason": "Penerima tidak ada di tempat"},
+		Metadata:  map[string]interface{}{"reason": "Penerima tidak ada di tempat"},
 	}
 
 	notification, err := proc.Process(event)

@@ -52,7 +52,8 @@ func (p *MessageProcessor) buildTemplate(event model.IncomingEvent) (subject, bo
 			event.AWB, event.OccurredAt.Format("02 Jan 2006, 15:04"),
 		)
 	case model.EventPackageInTransit:
-		location := event.Metadata["location"]
+		locationVal, _ := event.Metadata["location"]
+		location := fmt.Sprintf("%v", locationVal)
 		subject = "Update Perjalanan Paketmu"
 		body = fmt.Sprintf(
 			"Resi %s kini sedang dalam perjalanan dan berada di: %s.",
@@ -65,7 +66,8 @@ func (p *MessageProcessor) buildTemplate(event model.IncomingEvent) (subject, bo
 			event.AWB,
 		)
 	case model.EventPackageFailed:
-		reason := event.Metadata["reason"]
+		reasonVal, _ := event.Metadata["reason"]
+		reason := fmt.Sprintf("%v", reasonVal)
 		subject = "Pengiriman Gagal - Tindakan Diperlukan"
 		body = fmt.Sprintf(
 			"Maaf, pengiriman resi %s gagal. Alasan: %s. "+

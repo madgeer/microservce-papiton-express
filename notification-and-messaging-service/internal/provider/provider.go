@@ -195,7 +195,7 @@ func getGoogleAccessToken(ctx context.Context, sa serviceAccount) (string, error
 	}
 
 	resp, err := http.PostForm(sa.TokenURI, url.Values{
-		"grant_type": {"urn:ietf:params:oauth2:grant-type:jwt-bearer"},
+		"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
 		"assertion":  {jwt},
 	})
 	if err != nil {

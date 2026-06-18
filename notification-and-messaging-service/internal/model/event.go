@@ -20,7 +20,7 @@ type IncomingEvent struct {
 	UserID     string            `json:"user_id"`
 	AWB        string            `json:"awb"`
 	OccurredAt time.Time         `json:"occurred_at"`
-	Metadata   map[string]string `json:"metadata"`
+	Metadata   map[string]interface{} `json:"metadata"`
 }
 
 // NotificationMessage adalah pesan yang siap dikirim ke user

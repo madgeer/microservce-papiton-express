@@ -47,7 +47,7 @@ func TestMessageProcessor_Process_PackageFailed_ShouldUseEmail(t *testing.T) {
 		EventType: model.EventPackageFailed,
 		UserID:    "user-456",
 		AWB:       "PAPITON-2025-002",
-		Metadata:  map[string]string{"reason": "Penerima tidak ada di tempat"},
+		Metadata:  map[string]interface{}{"reason": "Penerima tidak ada di tempat"},
 	}
 
 	result, err := p.Process(event)
@@ -66,7 +66,7 @@ func TestMessageProcessor_Process_InTransit_ContainsLocation(t *testing.T) {
 		EventType: model.EventPackageInTransit,
 		UserID:    "user-789",
 		AWB:       "PAPITON-2025-003",
-		Metadata:  map[string]string{"location": "Hub Jakarta Timur"},
+		Metadata:  map[string]interface{}{"location": "Hub Jakarta Timur"},
 	}
 
 	result, err := p.Process(event)
@@ -122,7 +122,7 @@ func TestMessageProcessor_Process_AllEventTypes(t *testing.T) {
 			event: model.IncomingEvent{
 				EventType: model.EventPackageFailed,
 				UserID:    "u4", AWB: "AWB004",
-				Metadata: map[string]string{"reason": "Alamat tidak ditemukan"},
+				Metadata: map[string]interface{}{"reason": "Alamat tidak ditemukan"},
 			},
 			expectedChannel: model.ChannelEmail,
 			expectError:     false,
