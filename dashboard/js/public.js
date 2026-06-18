@@ -37,10 +37,18 @@ async function calculateTariff() {
   
   const payload = {
     sender: {
+      name: "Pengirim Publik",
+      phone: "08123456789",
+      email: "pengirim@gmail.com",
+      full_address: "Alamat Pengirim",
       city: document.getElementById('senderCity').value,
       coordinate: { latitude: -6.8915, longitude: 107.6106 }
     },
     recipient: {
+      name: "Penerima Publik",
+      phone: "08987654321",
+      email: "penerima@gmail.com",
+      full_address: "Alamat Penerima",
       city: document.getElementById('recipientCity').value,
       coordinate: { latitude: -6.2088, longitude: 106.8456 }
     },
@@ -55,17 +63,17 @@ async function calculateTariff() {
 
   try {
     const data = await api.apiCalculateTariff(payload);
-    if (data.status === 'error' || !data.tarif_total) {
+    if (data.status === 'error' || data.total === undefined) {
       resultDiv.className = 'info-result error';
       resultDiv.innerText = 'Gagal menghitung tarif: Layanan tidak tersedia.';
       return;
     }
 
     resultDiv.className = 'info-result success';
-    const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.tarif_total);
+    const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.total);
     resultDiv.innerHTML = `
       <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem;">Estimasi Ongkos Kirim: ${formattedPrice}</div>
-      <div style="font-size: 0.85rem; color: #64748b;">Jarak: ${data.distance_km || 0} Km | Estimasi Waktu: ${data.eta || 'N/A'}</div>
+      <div style="font-size: 0.85rem; color: #64748b;">Jarak: ${data.distance !== undefined ? data.distance.toFixed(1) : 0} Km | Estimasi Waktu: ${data.eta || 'N/A'}</div>
     `;
   } catch (e) {
     resultDiv.className = 'info-result error';
