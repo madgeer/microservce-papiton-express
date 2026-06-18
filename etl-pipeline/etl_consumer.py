@@ -739,7 +739,7 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
         elif self.path == '/api/proxy/couriers/register':
             self.handle_proxy(f"{SHIPPING_SERVICE_URL}/api/v1/couriers/register", method='POST', body=body)
         elif self.path == '/api/proxy/dispatch':
-            self.handle_proxy(f"{SHIPPING_SERVICE_URL}/dispatch", method='POST', body=body)
+            self.handle_proxy(f"{SHIPPING_SERVICE_URL}/api/v1/dispatch", method='POST', body=body)
         elif self.path == '/api/proxy/dispatches/confirm':
             self.handle_proxy(f"{SHIPPING_SERVICE_URL}/api/v1/dispatches/confirm", method='POST', body=body)
         elif self.path == '/api/proxy/inbound':

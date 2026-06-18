@@ -221,7 +221,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok","service":"shipping-service"}`))
 	})
-	http.HandleFunc("/dispatch", chain(dispatchHandler.AutoDispatch))
+	http.HandleFunc("/api/v1/dispatch", chain(dispatchHandler.AutoDispatch))
 	http.HandleFunc("/api/v1/couriers/register", chain(dispatchHandler.RegisterCourier))
 	http.HandleFunc("/api/v1/couriers", chain(dispatchHandler.GetCouriers))
 	http.HandleFunc("/api/v1/couriers/status", chain(dispatchHandler.UpdateCourierStatus))

@@ -33,7 +33,7 @@ spec:
             name: shipping-app
             port:
               number: 80
-      - path: /api/v1/dispatches
+      - path: /api/v1/dispatch
         pathType: Prefix
         backend:
           service:
@@ -77,6 +77,13 @@ spec:
               
       # --- ETL SERVICE ---
       - path: /api/v1/etl
+        pathType: Prefix
+        backend:
+          service:
+            name: etl-service
+            port:
+              number: 80
+      - path: /api/metrics
         pathType: Prefix
         backend:
           service:
