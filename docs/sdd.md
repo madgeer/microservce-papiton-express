@@ -11,8 +11,8 @@ Dokumen ini menjelaskan rancangan perangkat lunak untuk sistem **PAPITON Express
 |---|---|
 | **Nama Proyek** | PAPITON Express |
 | **Dokumen** | Software Design Document (SDD) |
-| **Versi** | 1.0.0 |
-| **Tanggal Pembuatan** | 11 Juni 2026 |
+| **Versi** | 1.1.0 |
+| **Tanggal Pembuatan** | 11 Juni 2026 (Revisi: 18 Juni 2026) |
 | **Instansi/Mata Kuliah** | Tugas Besar - Pengembangan Sistem Cloud / Komputasi Awan |
 | **Pembuat / Tim** | Kelompok 5 — PAPITON Express |
 | **Status Dokumen** | Rilis Resmi |
@@ -21,6 +21,7 @@ Dokumen ini menjelaskan rancangan perangkat lunak untuk sistem **PAPITON Express
 | Versi | Tanggal | Penulis | Deskripsi Perubahan |
 |---|---|---|---|
 | 1.0.0 | 11 Juni 2026 | Kelompok 5 | Inisialisasi dokumen SDD lengkap mencakup 5 layanan mikro, skema database relasional & NoSQL, integrasi Kafka, alur sequence, dan skema deployment. |
+| 1.1.0 | 18 Juni 2026 | Kelompok 5 | Mengimplementasikan pengamanan API Key (requireAPIKey), rate limiter, penelusuran Correlation ID, batas waktu server (timeout), perbaikan startup check database, dan decoupling total database operasional pada ETL Service (migrasi ke payload Kafka enriched & REST HTTP API fallback). |
 
 ---
 
@@ -57,14 +58,17 @@ Sistem PAPITON Express mencakup 5 modul mikroservis utama:
 ## 3. ARSITEKTUR SISTEM & DESAIN TEKNOLOGI
 
 ### 3.1 Diagram Arsitektur Tingkat Tinggi
-Sistem logistik PAPITON Express menggunakan pola **Database-per-Service** untuk memastikan isolasi data dan otonomi layanan yang penuh, dipadukan dengan **Event-Driven Architecture** menggunakan Kafka untuk sinkronisasi asinkron.
+Sistem logistik PAPITON Express menggunakan pola **Database-per-Service** untuk memastikan isolasi data dan otonomi layanan yang penuh, dipadukan dengan **Event-Driven Architecture** menggunakan Kafka untuk sinkronisasi asinkron, serta **Analytical Layer (OLAP)** dengan ETL Pipeline dan Data Warehouse (DWH). Seluruh request dari client diarahkan melalui ETL Service yang bertindak sebagai API Gateway / HTTP Proxy.
 
 ```mermaid
 graph TD
-    Client[Client UI / Mobile & Web] -->|HTTP POST /api/v1/orders| OrderSvc[Order & Tariff Service]
-    Client -->|HTTP POST /dispatch| ShippingSvc[Shipping & Dispatch Service]
-    Client -->|HTTP POST /api/v1/inbound| WarehouseSvc[Warehouse & Inventory Service]
-    Client -->|HTTP GET /api/v1/tracking| TrackingSvc[Tracking & Log Event Service]
+    Client[Client / Dashboard UI] -->|1. HTTP /api/proxy/...| ETLProxy[ETL Proxy / API Gateway <br> Port 8085]
+    Client -->|2. HTTP /api/metrics| ETLProxy
+    
+    ETLProxy -->|HTTP Forward with API Key| OrderSvc[Order & Tariff Service <br> Port 8082]
+    ETLProxy -->|HTTP Forward with API Key| ShippingSvc[Shipping & Dispatch Service <br> Port 8081]
+    ETLProxy -->|HTTP Forward with API Key| WarehouseSvc[Warehouse & Inventory Service <br> Port 8080]
+    ETLProxy -->|HTTP Forward with API Key| TrackingSvc[Tracking & Log Event Service <br> Port 8083]
 
     subgraph Database Layer
         OrderDB[(Order DB: PostgreSQL)] --- OrderSvc
@@ -73,7 +77,7 @@ graph TD
         CourierGPS[(Location DB: MongoDB)] --- ShippingSvc
         WarehouseDB[(Warehouse DB: PostgreSQL)] --- WarehouseSvc
         TrackingDB[(Tracking DB: MongoDB)] --- TrackingSvc
-        NotifDB[(Notif Log DB: PostgreSQL/InMemory)] --- NotifSvc[Notification & Messaging Service]
+        NotifDB[(Notif Log DB: PostgreSQL)] --- NotifSvc[Notification & Messaging Service <br> Port 8084]
     end
 
     subgraph Message Broker
@@ -82,9 +86,9 @@ graph TD
         TrackingTopic((papiton.events.tracking))
     end
 
-    OrderSvc -->|Publish OrderCreated| OrderTopic
-    ShippingSvc -->|Publish CourierAssigned / PickedUp| ShippingTopic
-    WarehouseSvc -->|Publish PackageInbound / ManifestDeparted| TrackingTopic
+    OrderSvc -->|Publish Enriched Event| OrderTopic
+    ShippingSvc -->|Publish Enriched Event| ShippingTopic
+    WarehouseSvc -->|Publish Transit Event| TrackingTopic
 
     OrderTopic -.->|Subscribe| TrackingSvc
     ShippingTopic -.->|Subscribe| TrackingSvc
@@ -96,6 +100,18 @@ graph TD
 
     NotifSvc -->|Kirim Email| EmailServer[SMTP Server]
     NotifSvc -->|Kirim Push Notification| FCM[Firebase Cloud Messaging]
+
+    subgraph Analytical Layer - OLAP
+        ETLProxy -.->|Fallback Direct Connection| OrderDB
+        ETLProxy -.->|Fallback Direct Connection| ShippingDB
+        ETLProxy -.->|Fallback Direct Connection| WarehouseDB
+        
+        OrderTopic ===>|Consume Event| ETLProxy
+        ShippingTopic ===>|Consume Event| ETLProxy
+        TrackingTopic ===>|Consume Event| ETLProxy
+        
+        ETLProxy ===>|Load Star Schema| DWH[(Data Warehouse DB: Postgres)]
+    end
 ```
 
 ### 3.2 Tumpukan Teknologi (Tech Stack)
@@ -509,15 +525,24 @@ Diterbitkan oleh **Order Service** sesaat setelah AWB dibuat secara sukses.
 *   **Schema Payload**:
     ```json
     {
-      "event_id": "EVT-ORD-0091",
+      "event_id": "EVT-ORD-BDG240430120000X1Y2",
       "event_type": "order.created",
-      "user_id": "USR-8821",
+      "user_id": "sender@email.com",
       "awb": "BDG240430120000X1Y2",
-      "occurred_at": "2026-06-11T17:30:00Z",
+      "occurred_at": "2026-06-18T17:30:00Z",
       "metadata": {
-        "email": "sender@email.com",
+        "status": "CREATED",
+        "service_type": "EXPRESS",
+        "has_insurance": true,
+        "has_packing": false,
         "sender_city": "Bandung",
-        "recipient_city": "Jakarta"
+        "recipient_city": "Jakarta",
+        "package_weight": 2.5,
+        "package_length": 30.0,
+        "package_width": 20.0,
+        "package_height": 15.0,
+        "tarif_total": 28500.0,
+        "distance_km": 150.45
       }
     }
     ```
@@ -527,14 +552,16 @@ Diterbitkan oleh **Shipping Service** sewaktu kurir ditugaskan, mengambil paket,
 *   **Schema Payload**:
     ```json
     {
-      "event_id": "EVT-SHIP-0112",
+      "event_id": "EVT-DSP-DSP-BDG240430120000X1Y2-20260618174000",
       "event_type": "package.picked_up",
-      "user_id": "USR-8821",
+      "user_id": "customer@papiton.id",
       "awb": "BDG240430120000X1Y2",
-      "occurred_at": "2026-06-11T18:40:00Z",
+      "occurred_at": "2026-06-18T17:40:00Z",
       "metadata": {
         "courier_id": "C-001",
-        "courier_name": "Asep"
+        "vehicle_type": "MOTORCYCLE",
+        "status": "dispatch.assigned",
+        "route_instruction": "Jalan ke arah Utara Jl. Ganesha"
       }
     }
     ```
@@ -544,14 +571,14 @@ Diterbitkan oleh **Warehouse Service** saat memproses inbound, menyusun manifest
 *   **Schema Payload**:
     ```json
     {
-      "event_id": "EVT-TRK-0556",
+      "event_id": "EVT-INB-BDG240430120000X1Y2-20260618175000",
       "event_type": "package.in_transit",
-      "user_id": "USR-8821",
+      "user_id": "customer@papiton.id",
       "awb": "BDG240430120000X1Y2",
-      "occurred_at": "2026-06-11T20:10:00Z",
+      "occurred_at": "2026-06-18T17:50:00Z",
       "metadata": {
-        "location_code": "WH-BDO",
-        "status": "AT_HUB"
+        "location": "Warehouse WH-BDO",
+        "status": "inventory.inbound"
       }
     }
     ```
@@ -876,12 +903,44 @@ Layanan **Notification Service** dan **Tracking Service** yang mengonsumsi data 
 
 ### 8.2 Dead Letter Queue (DLQ) & Retry
 Jika terjadi kegagalan pemrosesan event pada consumer akibat putusnya database eksternal:
-1.  Pesan gagal akan dicoba kembali secara berkala (*Retry Strategy*) menggunakan mekanisme *exponential backoff*.
-2.  Jika pesan tetap gagal setelah 5 kali percobaan, pesan akan dipindahkan ke topik khusus **Dead Letter Queue (DLQ)** (`papiton.dlq.events`).
+1.  Pesan gagal akan dicoba kembali secara berkala (*Retry Strategy*) menggunakan mekanisme *exponential backoff* sebanyak 5 kali (`1s`, `2s`, `4s`, `8s`, `16s`).
+2.  Jika pesan tetap gagal setelah 5 kali percobaan, pesan akan dipindahkan ke topik khusus **Dead Letter Queue (DLQ)** (`papiton.dlq.events`) lengkap dengan metadata pesan asli dan log penyebab error.
 3.  Tim operational dapat memantau dan memproses ulang topik DLQ setelah gangguan database teratasi.
 
 ### 8.3 Optimasi Caching Redis
 Perhitungan jarak koordinat kota membutuhkan konsumsi daya komputasi tinggi. Layanan Order menggunakan Redis untuk menyimpan hasil hitung jarak antarkota dengan kebijakan pengosongan data (*cache eviction*) berbasis durasi hidup (**TTL 24 jam**).
+
+### 8.4 Otentikasi & Otorisasi API Key (requireAPIKey)
+Untuk mengamankan API publik dari pemanggilan tidak sah, semua mikroservis Go mengimplementasikan middleware `requireAPIKey` yang memvalidasi header `X-API-Key`.
+*   Nilai rahasia API Key didefinisikan secara aman melalui environment variable `API_KEY`.
+*   Jika header `X-API-Key` kosong atau tidak cocok, server mengembalikan status **401 Unauthorized** secara instan.
+*   ETL Service bertindak sebagai API Gateway / Proxy yang menyuntikkan API Key internal ini saat memforward request frontend ke mikroservis backend.
+
+### 8.5 Pembatasan Laju Request (Rate Limiting)
+Semua endpoint dilindungi dari serangan brute-force dan DoS menggunakan middleware `withRateLimit` berbasis in-memory IP request mapping:
+*   Batas default dikonfigurasi sebesar 100 Request Per Minute (RPM) per IP (bisa disesuaikan via `RATE_LIMIT_RPM`).
+*   Jika batas terlampaui, server mengembalikan status **429 Too Many Requests** beserta header `Retry-After: 60`.
+
+### 8.6 Tracing Terdistribusi & Korelasi ID (withCorrelationID)
+Untuk menelusuri transaksi/AWB tunggal yang melintasi beberapa mikroservis, diimplementasikan penelusuran terdistribusi berbasis **Correlation ID**:
+*   Setiap request dibungkus oleh middleware `withCorrelationID` yang mengekstrak header `X-Correlation-ID`.
+*   Jika header kosong, ID korelasi unik baru (misalnya `ord-...` atau `shp-...`) akan dibuat secara dinamis menggunakan timestamp nanodetik.
+*   ID Korelasi ini diteruskan ke downstream services (via HTTP request) dan dicatat dalam log konsol untuk mempermudah audit/debugging lintas container.
+
+### 8.7 Batas Waktu Server (HTTP Server Timeouts)
+Semua server HTTP dalam Go mikroservis tidak menggunakan listen default tanpa batas melainkan menggunakan konfigurasi `http.Server` eksplisit untuk menghindari Slowloris attack:
+*   `ReadTimeout`: 15 detik (waktu maksimal membaca request body).
+*   `WriteTimeout`: 15 detik (waktu maksimal menulis response).
+*   `IdleTimeout`: 60 detik (waktu maksimal mempertahankan keep-alive connection).
+
+### 8.8 Deteksi Kegagalan Database Awal (Startup Fail-Fast)
+Untuk mencegah mikroservis berjalan dalam kondisi "dummy mode" yang dapat membuang data transaksi secara diam-diam akibat database mati:
+*   Setiap layanan melakukan pengecekan koneksi (`db.Ping()`) pada saat fase inisialisasi awal di fungsi `main()`.
+*   Jika database utama offline, layanan akan langsung crash pada startup menggunakan `log.Fatalf()`. Hal ini memicu orkestrator (seperti Docker Compose atau Kubernetes) untuk melaporkan pod tidak sehat atau melakukan restart berkala.
+
+### 8.9 Sinkronisasi Goroutine & ML Model Retraining Safety
+*   **WaitGroup pada Kafka Consumer**: Untuk menjamin pembersihan sumber daya yang aman (*graceful shutdown*), Kafka Consumer menggunakan `sync.WaitGroup` untuk menunggu seluruh goroutine pendengar topik selesai membaca sebelum aplikasi benar-benar berhenti.
+*   **Locks pada File Model ML**: Proses pelatihan ulang regresi linear ETL dan inferensi ETA berjalan pada thread terpisah. Untuk mencegah race condition atau kerusakan file saat 10+ paket di-deliver bersamaan, digunakan `threading.Lock()` (`model_lock`) untuk mengunci penulisan/pembacaan file model `eta_model.pkl` secara bergantian.
 
 ---
 

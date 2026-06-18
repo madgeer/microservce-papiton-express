@@ -356,6 +356,7 @@ services:
       - WAREHOUSE_SERVICE_URL=http://warehouse-app:8080
       - TRACKING_SERVICE_URL=http://tracking-app:8080
       - ETL_WORKERS=4
+      - API_KEY=${API_KEY:-}
     depends_on:
       kafka:
         condition: service_started

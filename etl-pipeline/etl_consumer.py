@@ -655,11 +655,24 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
     def handle_proxy(self, target_url, method='POST', body=None):
         import urllib.request
         import urllib.error
+        
+        # Ambil atau generate Correlation ID
+        correlation_id = self.headers.get('X-Correlation-ID')
+        if not correlation_id:
+            correlation_id = f"proxy-{int(time.time() * 1000)}"
+            
+        headers = {
+            'X-API-Key': os.getenv("API_KEY", ""),
+            'X-Correlation-ID': correlation_id
+        }
+        if body is not None:
+            headers['Content-Type'] = 'application/json'
+            
         try:
             req = urllib.request.Request(
                 target_url,
                 data=json.dumps(body).encode('utf-8') if body else None,
-                headers={'Content-Type': 'application/json'} if body else {},
+                headers=headers,
                 method=method
             )
             with urllib.request.urlopen(req, timeout=5) as response:
