@@ -68,6 +68,33 @@ export async function apiProcessInbound(payload) {
   return response.json();
 }
 
+export async function apiCreateManifest(payload) {
+  const response = await fetch(`${PROXY_URL}/api/proxy/manifest/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return response.json();
+}
+
+export async function apiAddToManifest(payload) {
+  const response = await fetch(`${PROXY_URL}/api/proxy/manifest/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return response.json();
+}
+
+export async function apiUpdateManifest(payload) {
+  const response = await fetch(`${PROXY_URL}/api/proxy/manifest/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return response.json();
+}
+
 export async function apiGetTrackingHistory(resi) {
   const response = await fetch(`${PROXY_URL}/api/proxy/tracking?resi_id=${resi}`);
   if (!response.ok) throw new Error('Tracking data not found');

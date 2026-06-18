@@ -746,6 +746,12 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
             self.handle_proxy(f"{WAREHOUSE_SERVICE_URL}/api/v1/inbound", method='POST', body=body)
         elif self.path == '/api/proxy/tracking/scan':
             self.handle_proxy(f"{TRACKING_SERVICE_URL}/api/v1/tracking/scan", method='POST', body=body)
+        elif self.path == '/api/proxy/manifest/create':
+            self.handle_proxy(f"{WAREHOUSE_SERVICE_URL}/api/v1/manifest/create", method='POST', body=body)
+        elif self.path == '/api/proxy/manifest/add':
+            self.handle_proxy(f"{WAREHOUSE_SERVICE_URL}/api/v1/manifest/add", method='POST', body=body)
+        elif self.path == '/api/proxy/manifest/update':
+            self.handle_proxy(f"{WAREHOUSE_SERVICE_URL}/api/v1/manifest/update", method='POST', body=body)
         else:
             self.send_response(404)
             self.end_headers()

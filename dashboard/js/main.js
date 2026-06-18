@@ -385,6 +385,68 @@ async function processInbound() {
   }
 }
 
+// 7b. Create Manifest Outbound
+async function createManifest() {
+  const resBox = document.getElementById('manifestResponse');
+  resBox.classList.add('active');
+  resBox.innerText = "Membuat manifest truk baru...";
+
+  const payload = {
+    truck_id: document.getElementById('manifestTruck').value,
+    driver_name: document.getElementById('manifestDriver').value
+  };
+
+  try {
+    const data = await api.apiCreateManifest(payload);
+    resBox.innerText = JSON.stringify(data, null, 2);
+    if (data.manifest_id) {
+      ui.updateState('activeMan', data.manifest_id);
+      ui.triggerAlert('manifestAlert');
+    }
+  } catch (e) {
+    resBox.innerText = "Error Manifest Create: " + e.message;
+  }
+}
+
+// 7c. Add package to Manifest
+async function addToManifest() {
+  const resBox = document.getElementById('manifestResponse');
+  resBox.classList.add('active');
+  resBox.innerText = "Memasukkan paket ke manifest truk...";
+
+  const payload = {
+    manifest_id: document.getElementById('manifestIdInput').value,
+    resi: document.getElementById('manifestAwbInput').value
+  };
+
+  try {
+    const data = await api.apiAddToManifest(payload);
+    resBox.innerText = JSON.stringify(data, null, 2);
+    ui.triggerAlert('manifestAlert');
+  } catch (e) {
+    resBox.innerText = "Error Add to Manifest: " + e.message;
+  }
+}
+
+// 7d. Update Manifest (Depart)
+async function updateManifest() {
+  const resBox = document.getElementById('manifestResponse');
+  resBox.classList.add('active');
+  resBox.innerText = "Mengirim update status manifest (Depart)...";
+
+  const payload = {
+    manifest_id: document.getElementById('manifestIdUpdate').value
+  };
+
+  try {
+    const data = await api.apiUpdateManifest(payload);
+    resBox.innerText = JSON.stringify(data, null, 2);
+    ui.triggerAlert('manifestAlert');
+  } catch (e) {
+    resBox.innerText = "Error Update Manifest: " + e.message;
+  }
+}
+
 async function updateTrackingMap(historyLogs) {
   if (!historyLogs || historyLogs.length === 0) return;
 
@@ -582,6 +644,9 @@ window.registerDriver = registerDriver;
 window.autoDispatch = autoDispatch;
 window.confirmPickUp = confirmPickUp;
 window.processInbound = processInbound;
+window.createManifest = createManifest;
+window.addToManifest = addToManifest;
+window.updateManifest = updateManifest;
 window.trackAwb = trackAwb;
 window.sendManualScan = sendManualScan;
 window.fetchMetrics = fetchMetrics;

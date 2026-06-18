@@ -381,6 +381,64 @@
 
         <div class="response-box" id="warehouseResponse"></div>
       </div>
+
+      <!-- Manifest Outbound Section -->
+      <div class="glass-card" style="margin-top: 2rem;">
+        <h3 class="variables-title" style="margin-bottom: 1rem;">Pembuatan & Pengiriman Manifest Truk (Outbound)</h3>
+        <div class="alert alert-success" id="manifestAlert">Aksi manifest berhasil diproses!</div>
+
+        <!-- 1. Pembuatan Manifest -->
+        <h4 style="color: rgba(255,255,255,0.8); margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.25rem; font-size: 1rem; font-weight: 500;">1. Buat Manifest Baru</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>ID Truk / Plat Nomor</label>
+            <input type="text" id="manifestTruck" value="D-9988-ABC">
+          </div>
+          <div class="form-group">
+            <label>Nama Driver Truk</label>
+            <input type="text" id="manifestDriver" value="Pak Maman">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-bottom: 1.5rem;">
+          <button type="button" class="btn" onclick="createManifest()">Buat Manifest Truk</button>
+        </div>
+
+        <!-- 2. Tambah AWB ke Manifest -->
+        <h4 style="color: rgba(255,255,255,0.8); margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.25rem; font-size: 1rem; font-weight: 500;">2. Masukkan Paket ke Manifest</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>ID Manifest</label>
+            <input type="text" id="manifestIdInput" placeholder="Masukkan ID Manifest aktif...">
+          </div>
+          <div class="form-group">
+            <label>Resi / AWB Paket</label>
+            <input type="text" id="manifestAwbInput" placeholder="Masukkan AWB paket...">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-bottom: 1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="addToManifest()">Masukkan ke Manifest</button>
+        </div>
+
+        <!-- 3. Update Status Manifest -->
+        <h4 style="color: rgba(255,255,255,0.8); margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.25rem; font-size: 1rem; font-weight: 500;">3. Update Perjalanan Manifest</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>ID Manifest</label>
+            <input type="text" id="manifestIdUpdate" placeholder="Masukkan ID Manifest untuk update...">
+          </div>
+          <div class="form-group">
+            <label>Aksi Manifest</label>
+            <select id="manifestAction">
+              <option value="DEPART" selected>Depart (Truk Berangkat)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="updateManifest()">Update Perjalanan Truk</button>
+        </div>
+
+        <div class="response-box" id="manifestResponse"></div>
+      </div>
     </section>
 
     <!-- TAB 5: TRACK & TRACE TIMELINE -->

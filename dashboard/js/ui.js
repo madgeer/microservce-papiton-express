@@ -37,6 +37,14 @@ export function updateVariablesUI() {
   document.getElementById('dispatchAwb').value = state.activeResi !== 'RESI-EMPTY' ? state.activeResi : '';
   document.getElementById('inboundAwb').value = state.activeResi !== 'RESI-EMPTY' ? state.activeResi : '';
   document.getElementById('searchAwb').value = state.activeResi !== 'RESI-EMPTY' ? state.activeResi : '';
+  
+  // Manifest inputs sync
+  const manIdInput = document.getElementById('manifestIdInput');
+  const manIdUpdate = document.getElementById('manifestIdUpdate');
+  const manAwbInput = document.getElementById('manifestAwbInput');
+  if (manIdInput) manIdInput.value = state.activeMan !== 'MAN-EMPTY' ? state.activeMan : '';
+  if (manIdUpdate) manIdUpdate.value = state.activeMan !== 'MAN-EMPTY' ? state.activeMan : '';
+  if (manAwbInput) manAwbInput.value = state.activeResi !== 'RESI-EMPTY' ? state.activeResi : '';
 }
 
 // Tab Swapper
