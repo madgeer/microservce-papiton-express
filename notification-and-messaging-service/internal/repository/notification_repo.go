@@ -44,6 +44,17 @@ func NewPostgresNotificationRepository(db *sql.DB) *PostgresNotificationReposito
 		log.Printf("[Repository] Gagal membuat tabel notification_logs: %v", err)
 	}
 
+	// Pastikan tabel processed_events dibuat untuk idempotensi
+	queryCreateTableProcessed := `
+	CREATE TABLE IF NOT EXISTS processed_events (
+		event_id VARCHAR(100) PRIMARY KEY,
+		processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);`
+	_, err = db.Exec(queryCreateTableProcessed)
+	if err != nil {
+		log.Printf("[Repository] Gagal membuat tabel processed_events: %v", err)
+	}
+
 	return &PostgresNotificationRepository{db: db}
 }
 
@@ -92,14 +103,44 @@ func (r *PostgresNotificationRepository) GetLogs(ctx context.Context) ([]Notific
 	return list, nil
 }
 
+func (r *PostgresNotificationRepository) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
+	if eventID == "" {
+		return false, nil
+	}
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)`
+	err := r.db.QueryRowContext(ctx, query, eventID).Scan(&exists)
+	if err != nil {
+		log.Printf("[Repository] Gagal mengecek event_id %s: %v", eventID, err)
+		return false, err
+	}
+	return exists, nil
+}
+
+func (r *PostgresNotificationRepository) MarkEventProcessed(ctx context.Context, eventID string) error {
+	if eventID == "" {
+		return nil
+	}
+	query := `INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING`
+	_, err := r.db.ExecContext(ctx, query, eventID)
+	if err != nil {
+		log.Printf("[Repository] Gagal menandai event_id %s terproses: %v", eventID, err)
+		return err
+	}
+	return nil
+}
+
 // InMemoryNotificationRepository adalah implementasi in-memory untuk testing
 // Berguna untuk functional test yang tidak memerlukan database nyata
 type InMemoryNotificationRepository struct {
-	Logs []NotificationLog
+	Logs            []NotificationLog
+	ProcessedEvents map[string]bool
 }
 
 func NewInMemoryNotificationRepository() *InMemoryNotificationRepository {
-	return &InMemoryNotificationRepository{}
+	return &InMemoryNotificationRepository{
+		ProcessedEvents: make(map[string]bool),
+	}
 }
 
 func (r *InMemoryNotificationRepository) SaveLog(
@@ -121,4 +162,25 @@ func (r *InMemoryNotificationRepository) SaveLog(
 
 func (r *InMemoryNotificationRepository) GetLogs(ctx context.Context) ([]NotificationLog, error) {
 	return r.Logs, nil
+}
+
+func (r *InMemoryNotificationRepository) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
+	if eventID == "" {
+		return false, nil
+	}
+	if r.ProcessedEvents == nil {
+		r.ProcessedEvents = make(map[string]bool)
+	}
+	return r.ProcessedEvents[eventID], nil
+}
+
+func (r *InMemoryNotificationRepository) MarkEventProcessed(ctx context.Context, eventID string) error {
+	if eventID == "" {
+		return nil
+	}
+	if r.ProcessedEvents == nil {
+		r.ProcessedEvents = make(map[string]bool)
+	}
+	r.ProcessedEvents[eventID] = true
+	return nil
 }

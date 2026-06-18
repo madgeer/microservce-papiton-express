@@ -28,6 +28,11 @@ func main() {
 	fcmKey := getEnv("FCM_SERVER_KEY", "")
 	smtpHost := getEnv("SMTP_HOST", "smtp.papiton.id")
 	fromEmail := getEnv("FROM_EMAIL", "noreply@papiton.id")
+	smtpPortStr := getEnv("SMTP_PORT", "587")
+	smtpPort := 587
+	fmt.Sscanf(smtpPortStr, "%d", &smtpPort)
+	smtpUser := getEnv("SMTP_USER", "")
+	smtpPass := getEnv("SMTP_PASSWORD", "")
 
 	topics := []string{
 		"papiton.events.order",
@@ -55,7 +60,7 @@ func main() {
 
 	// ── Inisialisasi komponen ─────────────────────────────────────────────────
 	proc := processor.NewMessageProcessor()
-	emailProv := provider.NewEmailProvider(smtpHost, 587, fromEmail)
+	emailProv := provider.NewEmailProvider(smtpHost, smtpPort, fromEmail, smtpUser, smtpPass)
 	pushProv := provider.NewPushProvider(fcmKey)
 	repo := repository.NewPostgresNotificationRepository(db)
 	disp := dispatcher.NewDispatcher(emailProv, pushProv, repo)
@@ -66,6 +71,7 @@ func main() {
 		topics,
 		proc,
 		disp,
+		repo,
 	)
 
 	// ── Graceful shutdown ─────────────────────────────────────────────────────
@@ -112,6 +118,12 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
+
+	log.Println("Menutup Kafka Consumer...")
+	if err := kafkaConsumer.Close(); err != nil {
+		log.Printf("Gagal menutup kafkaConsumer: %v", err)
+	}
+
 	log.Println("Layanan dihentikan sepenuhnya.")
 }
 

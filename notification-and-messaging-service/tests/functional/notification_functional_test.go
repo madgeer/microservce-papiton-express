@@ -25,7 +25,7 @@ func TestNotificationFlow_OrderCreated_Integration(t *testing.T) {
 
 	// ── Inisialisasi komponen nyata (bukan mock) ──────────────────────────────
 	proc := processor.NewMessageProcessor()
-	emailProv := provider.NewEmailProvider("smtp.papiton.id", 587, "noreply@papiton.id")
+	emailProv := provider.NewEmailProvider("smtp.papiton.id", 587, "noreply@papiton.id", "", "")
 	pushProv := provider.NewPushProvider("FCM_SERVER_KEY_PLACEHOLDER")
 	repo := repository.NewInMemoryNotificationRepository()
 
@@ -73,7 +73,7 @@ func TestNotificationFlow_PackageFailed_UsesEmail(t *testing.T) {
 	}
 
 	proc := processor.NewMessageProcessor()
-	emailProv := provider.NewEmailProvider("smtp.papiton.id", 587, "noreply@papiton.id")
+	emailProv := provider.NewEmailProvider("smtp.papiton.id", 587, "noreply@papiton.id", "", "")
 	pushProv := provider.NewPushProvider("FCM_KEY")
 	repo := repository.NewInMemoryNotificationRepository()
 	disp := dispatcher.NewDispatcher(emailProv, pushProv, repo)
@@ -118,7 +118,7 @@ func TestNotificationFlow_MultipleEvents_AllLogged(t *testing.T) {
 	}
 
 	proc := processor.NewMessageProcessor()
-	emailProv := provider.NewEmailProvider("smtp.papiton.id", 587, "noreply@papiton.id")
+	emailProv := provider.NewEmailProvider("smtp.papiton.id", 587, "noreply@papiton.id", "", "")
 	pushProv := provider.NewPushProvider("FCM_KEY")
 	repo := repository.NewInMemoryNotificationRepository()
 	disp := dispatcher.NewDispatcher(emailProv, pushProv, repo)
