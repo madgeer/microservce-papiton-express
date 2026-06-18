@@ -1,6 +1,6 @@
 /* PAPITON Express — API Service Module */
 
-const PROXY_URL = 'http://localhost:8085';
+const PROXY_URL = '';
 
 export async function getDwhMetrics() {
   const response = await fetch(`${PROXY_URL}/api/metrics`);
@@ -9,7 +9,7 @@ export async function getDwhMetrics() {
 }
 
 export async function apiCalculateTariff(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/tariff/calculate`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/tariff/calculate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -18,7 +18,7 @@ export async function apiCalculateTariff(payload) {
 }
 
 export async function apiCreateOrder(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/orders`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -28,7 +28,7 @@ export async function apiCreateOrder(payload) {
 }
 
 export async function apiRegisterCourier(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/couriers/register`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/couriers/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -38,7 +38,7 @@ export async function apiRegisterCourier(payload) {
 }
 
 export async function apiAutoDispatch(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/dispatch`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/dispatch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -51,7 +51,7 @@ export async function apiAutoDispatch(payload) {
 }
 
 export async function apiConfirmPickUp(dispatchId) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/dispatches/confirm`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/dispatches/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ dispatch_id: dispatchId })
@@ -60,7 +60,7 @@ export async function apiConfirmPickUp(dispatchId) {
 }
 
 export async function apiProcessInbound(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/inbound`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/inbound`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -69,7 +69,7 @@ export async function apiProcessInbound(payload) {
 }
 
 export async function apiCreateManifest(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/manifest/create`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/manifest/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -78,7 +78,7 @@ export async function apiCreateManifest(payload) {
 }
 
 export async function apiAddToManifest(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/manifest/add`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/manifest/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -87,7 +87,7 @@ export async function apiAddToManifest(payload) {
 }
 
 export async function apiUpdateManifest(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/manifest/update`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/manifest/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -96,13 +96,13 @@ export async function apiUpdateManifest(payload) {
 }
 
 export async function apiGetTrackingHistory(resi) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/tracking?resi_id=${resi}`);
+  const response = await fetch(`${PROXY_URL}/api/v1/tracking?resi_id=${resi}`);
   if (!response.ok) throw new Error('Tracking data not found');
   return response.json();
 }
 
 export async function apiSendManualScan(payload) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/tracking/scan`, {
+  const response = await fetch(`${PROXY_URL}/api/v1/tracking/scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -111,7 +111,7 @@ export async function apiSendManualScan(payload) {
 }
 
 export async function apiGetCourierLocation(courierID) {
-  const response = await fetch(`${PROXY_URL}/api/proxy/couriers/location?courier_id=${courierID}`);
+  const response = await fetch(`${PROXY_URL}/api/v1/couriers/location?courier_id=${courierID}`);
   if (!response.ok) throw new Error('Location not found');
   return response.json();
 }
