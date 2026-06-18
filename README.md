@@ -120,6 +120,63 @@ Untuk mensimulasikan kurir bergerak di jalan, Anda bisa mengirimkan titik koordi
 
 ---
 
+## 🔌 Arsitektur Teknis & Alur Event-Driven (EDA)
+
+Berikut adalah diagram alur koordinasi teknis antar-mikroservis asinkron menggunakan Apache Kafka dan PostgreSQL/MongoDB:
+
+### 1. Diagram Alur Transaksi & Sinkronisasi
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Pelanggan as Pelanggan (index.html)
+    actor Admin as Admin Loket (portal.html)
+    participant Gateway as API Gateway (Python)
+    participant OrderSvc as Order & Tariff Service (Go)
+    participant ShippingSvc as Shipping Service (Go)
+    participant WhSvc as Warehouse Service (Go)
+    participant Kafka as Apache Kafka Broker
+    participant TrackSvc as Tracking Service (Go)
+    participant NotifSvc as Notification Service (Go)
+    participant DWH as Data Warehouse (PostgreSQL)
+
+    %% Skenario 1: Cek Tarif & Buat Order
+    Pelanggan->>Gateway: POST /api/proxy/tariff/calculate
+    Gateway->>OrderSvc: Cek tarif logistik (Redis Cache)
+    OrderSvc-->>Pelanggan: Hasil estimasi tarif & jarak
+
+    Admin->>Gateway: POST /api/proxy/orders
+    Gateway->>OrderSvc: Simpan order baru di Postgres
+    OrderSvc->>Kafka: Publish event "order.created"
+    Kafka->>NotifSvc: Consume "order.created"
+    NotifSvc->>NotifSvc: Kirim notifikasi FCM/Email (simulasi riil)
+
+    %% Skenario 2: Dispatch Driver
+    Admin->>Gateway: POST /api/proxy/dispatch
+    Gateway->>ShippingSvc: Cari & tugaskan kurir otomatis
+    ShippingSvc->>Kafka: Publish event "dispatch.assigned"
+    Kafka->>NotifSvc: Consume & kirim notifikasi penugasan
+
+    %% Skenario 3: Scan Inbound Gudang
+    Admin->>Gateway: POST /api/proxy/inbound
+    Gateway->>WhSvc: Scan barcode paket masuk
+    WhSvc->>Kafka: Publish event "package.in_transit" (AT_HUB)
+    Kafka->>TrackSvc: Consume & catat histori di MongoDB
+
+    %% Skenario 4: Lacak Resi (Track & Trace)
+    Pelanggan->>Gateway: GET /api/proxy/tracking?resi_id=...
+    Gateway->>TrackSvc: Ambil log perjalanan dari MongoDB
+    TrackSvc-->>Pelanggan: Tampilkan stepper timeline & live GPS kurir
+```
+
+### 2. Logika Pemrosesan Teknis Detil
+Setiap langkah dalam sistem ini terikat pada fungsionalitas handal berikut:
+*   **Idempotensi (Anti-Duplikasi)**: Ketika `Notification Service` membaca event dari Kafka, ia akan mencocokkan `event_id` ke tabel database `processed_events`. Jika `event_id` sudah pernah diproses, event dibuang secara diam-diam (*silently discarded*) untuk menjaga integritas data.
+*   **Retry Strategy dengan Exponential Backoff**: Jika pengiriman notifikasi gagal (misal dipicu dengan kata kunci `"FAIL-TEST"`), sistem akan mencoba kembali sebanyak maksimal **5 kali** dengan penundaan waktu yang membesar secara eksponensial (`1s`, `2s`, `4s`, `8s`, `16s`).
+*   **Dead Letter Queue (DLQ)**: Jika setelah 5 kali retry pengiriman tetap gagal, pesan akan dilempar ke topik Kafka `papiton.dlq.events` bersama detail alasan error.
+*   **Auto-Retraining Machine Learning**: Ketika status pelacakan paket berubah menjadi `DELIVERED`, ETL Pipeline Python menangkap perubahan tersebut, menyimpannya ke Data Warehouse, dan memicu thread background untuk melatih ulang model regresi linear (`LinearRegression`) scikit-learn secara real-time guna memperbarui perkiraan durasi ETA order berikutnya.
+
+---
+
 ## 🧹 Cara Menghentikan Aplikasi
 
 Jika simulasi telah selesai dan Anda ingin mematikan container docker:
