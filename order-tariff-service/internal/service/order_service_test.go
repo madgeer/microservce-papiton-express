@@ -45,7 +45,14 @@ func TestCreateOrder_FullFlow(t *testing.T) {
 			Name: "Dicka",
 			City: "Jakarta",
 		},
-		ServiceType: "REGULAR"}
+		Package: domain.Paket{
+			ActualWeight: 2.5,
+			Length:       10.0,
+			Width:        10.0,
+			Height:       10.0,
+		},
+		ServiceType: "REGULAR",
+	}
 
 	res, err := svc.CreateOrder(req)
 
