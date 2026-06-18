@@ -4,6 +4,7 @@ import datetime
 import time
 import pickle
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -21,6 +22,12 @@ DWH_DB_URL = os.getenv("DWH_DB_URL", "postgresql://postgres:dwhpassword@dwh-db:5
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://tracking-mongo:27017")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "tracking_db")
 
+# URL internal service — dikonfigurasi via env var, tidak hardcode nama container
+ORDER_SERVICE_URL    = os.getenv("ORDER_SERVICE_URL",    "http://order-app:8080")
+SHIPPING_SERVICE_URL = os.getenv("SHIPPING_SERVICE_URL", "http://shipping-app:8080")
+WAREHOUSE_SERVICE_URL= os.getenv("WAREHOUSE_SERVICE_URL","http://warehouse-app:8080")
+TRACKING_SERVICE_URL = os.getenv("TRACKING_SERVICE_URL", "http://tracking-app:8080")
+
 print("Initializing database engines...")
 ORDER_ENGINE = create_engine(ORDER_DB_URL)
 SHIPPING_ENGINE = create_engine(SHIPPING_DB_URL)
@@ -28,38 +35,41 @@ WAREHOUSE_ENGINE = create_engine(WAREHOUSE_DB_URL)
 DWH_ENGINE = create_engine(DWH_DB_URL)
 
 MODEL_PATH = "/app/eta_model.pkl"
+# Lock untuk mencegah race condition saat training dan prediksi model secara bersamaan
+model_lock = threading.Lock()
 
 def train_model():
     print("Triggering machine learning model training loop...")
-    try:
-        # Read historical delivered data from DWH
-        with DWH_ENGINE.connect() as conn:
-            query = """
-                SELECT f.distance_km, f.package_weight, f.volumetric_weight, 
-                       (CASE WHEN s.service_type = 'EXPRESS' THEN 1 ELSE 0 END) as is_express,
-                       f.actual_duration_hours
-                FROM fact_shipment f
-                JOIN dim_service s ON f.service_key = s.service_key
-                WHERE f.order_status = 'DELIVERED' AND f.actual_duration_hours IS NOT NULL
-            """
-            df = pd.read_sql(query, conn)
-        
-        if len(df) < 3:
-            print(f"Not enough training data in DWH (have {len(df)} records, need at least 3). Skipping training.")
-            return
-        
-        X = df[['distance_km', 'package_weight', 'volumetric_weight', 'is_express']].values
-        y = df['actual_duration_hours'].values
-        
-        model = LinearRegression()
-        model.fit(X, y)
-        
-        # Save model to file
-        with open(MODEL_PATH, 'wb') as f:
-            pickle.dump(model, f)
-        print(f"Machine learning model successfully trained on {len(df)} records and saved to {MODEL_PATH}!")
-    except Exception as e:
-        print(f"Error training machine learning model: {e}")
+    with model_lock:
+        try:
+            # Read historical delivered data from DWH
+            with DWH_ENGINE.connect() as conn:
+                query = """
+                    SELECT f.distance_km, f.package_weight, f.volumetric_weight,
+                           (CASE WHEN s.service_type = 'EXPRESS' THEN 1 ELSE 0 END) as is_express,
+                           f.actual_duration_hours
+                    FROM fact_shipment f
+                    JOIN dim_service s ON f.service_key = s.service_key
+                    WHERE f.order_status = 'DELIVERED' AND f.actual_duration_hours IS NOT NULL
+                """
+                df = pd.read_sql(query, conn)
+
+            if len(df) < 3:
+                print(f"Not enough training data in DWH (have {len(df)} records, need at least 3). Skipping training.")
+                return
+
+            X = df[['distance_km', 'package_weight', 'volumetric_weight', 'is_express']].values
+            y = df['actual_duration_hours'].values
+
+            model = LinearRegression()
+            model.fit(X, y)
+
+            # Save model to file
+            with open(MODEL_PATH, 'wb') as f:
+                pickle.dump(model, f)
+            print(f"Machine learning model successfully trained on {len(df)} records and saved to {MODEL_PATH}!")
+        except Exception as e:
+            print(f"Error training machine learning model: {e}")
 
 def predict_duration(distance, weight, vol_weight, is_express):
     # Rule-based heuristic fallback (e.g. 2 hrs per 50km for express, 5 hrs per 50km for regular + weight factor)
@@ -71,8 +81,9 @@ def predict_duration(distance, weight, vol_weight, is_express):
         return round(base_duration, 2)
         
     try:
-        with open(MODEL_PATH, 'rb') as f:
-            model = pickle.load(f)
+        with model_lock:
+            with open(MODEL_PATH, 'rb') as f:
+                model = pickle.load(f)
         features = np.array([[distance, weight, vol_weight, 1 if is_express else 0]])
         pred = model.predict(features)[0]
         if pred < 0.5:
@@ -321,45 +332,51 @@ def parse_eta(eta_str, created_at):
         # Fallback to created_at + 1 day
         return created_at + datetime.timedelta(days=1)
 
-def handle_order_created(awb):
+def handle_order_created(awb, event_metadata=None):
+    """Proses order.created event menggunakan data dari Kafka payload (event_metadata).
+    ETL tidak lagi query langsung ke order-db — data sudah dikirim oleh order-service."""
     print(f"Processing order.created event for AWB: {awb}")
-    # Extract order details from order-db
-    with ORDER_ENGINE.connect() as src_conn:
-        order = src_conn.execute(text("SELECT * FROM orders WHERE awb = :awb"), {"awb": awb}).mappings().first()
-    
-    if not order:
-        print(f"WARNING: Order with AWB {awb} not found in Order DB yet. Will retry later.")
-        return
 
-    # Extract additional warehouse info if already inbounded
-    with WAREHOUSE_ENGINE.connect() as wh_conn:
-        inbound = wh_conn.execute(text("SELECT * FROM inbound_packages WHERE resi = :awb"), {"awb": awb}).mappings().first()
-    
-    warehouse_id = inbound['warehouse_id'] if inbound else 'WH-BDG' # Default hub
+    # Ekstrak data dari metadata event (sudah diperkaya oleh order-service)
+    meta = event_metadata or {}
+    service_type   = meta.get("service_type", "REGULAR")
+    has_insurance  = bool(meta.get("has_insurance", False))
+    has_packing    = bool(meta.get("has_packing", False))
+    sender_city    = meta.get("sender_city", "Unknown")
+    recipient_city = meta.get("recipient_city", "Unknown")
+    package_weight = float(meta.get("package_weight", 0))
+    package_length = float(meta.get("package_length", 0))
+    package_width  = float(meta.get("package_width", 0))
+    package_height = float(meta.get("package_height", 0))
+    tarif_total    = float(meta.get("tarif_total", 0))
+    distance_km    = float(meta.get("distance_km", 0))
+    order_status   = meta.get("status", "Shipment Created")
 
-    # Extract warehouse profile
-    with WAREHOUSE_ENGINE.connect() as wh_conn:
-        wh_profile = wh_conn.execute(text("SELECT * FROM warehouses WHERE warehouse_id = :warehouse_id"), {"warehouse_id": warehouse_id}).mappings().first()
-    
+    # Jika metadata kosong (event lama / backward-compat), fallback ke query order-db
+    if not meta or distance_km == 0:
+        print(f"[ETL Warning] Metadata kosong untuk AWB {awb}, fallback ke query order-db...")
+        with ORDER_ENGINE.connect() as src_conn:
+            order = src_conn.execute(text("SELECT * FROM orders WHERE awb = :awb"), {"awb": awb}).mappings().first()
+        if not order:
+            print(f"ERROR: Order AWB {awb} tidak ditemukan di DB. Event dilewati.")
+            return
+        service_type   = order["service_type"]
+        has_insurance  = order["has_insurance"]
+        has_packing    = order["has_packing"]
+        sender_city    = order["sender_city"]
+        recipient_city = order["recipient_city"]
+        package_weight = float(order["package_weight"])
+        package_length = float(order["package_length"])
+        package_width  = float(order["package_width"])
+        package_height = float(order["package_height"])
+        tarif_total    = float(order["tarif_total"])
+        distance_km    = float(order["distance"])
+        order_status   = order["status"]
+
+    # Warehouse default — akan diperbarui saat event inbound diterima
+    warehouse_id = 'WH-BDG'
+
     with DWH_ENGINE.begin() as conn:
-        # Load dim_warehouse
-        if wh_profile:
-            conn.execute(text("""
-                INSERT INTO dim_warehouse (warehouse_id, warehouse_name, city, region, warehouse_type)
-                VALUES (:warehouse_id, :warehouse_name, :city, :region, :warehouse_type)
-                ON CONFLICT (warehouse_id) DO UPDATE SET
-                    warehouse_name = EXCLUDED.warehouse_name,
-                    city = EXCLUDED.city,
-                    region = EXCLUDED.region,
-                    warehouse_type = EXCLUDED.warehouse_type;
-            """), {
-                "warehouse_id": wh_profile["warehouse_id"],
-                "warehouse_name": wh_profile["name"],
-                "city": wh_profile["city"],
-                "region": wh_profile["region"],
-                "warehouse_type": wh_profile["warehouse_type"]
-            })
-
         # Load dim_service
         conn.execute(text("""
             INSERT INTO dim_service (service_type, has_insurance, has_packing, base_price_per_km, insurance_fee)
@@ -368,39 +385,36 @@ def handle_order_created(awb):
                 has_insurance = EXCLUDED.has_insurance,
                 has_packing = EXCLUDED.has_packing;
         """), {
-            "service_type": order["service_type"],
-            "has_insurance": order["has_insurance"],
-            "has_packing": order["has_packing"],
-            "base_price_per_km": 1500 if order["service_type"] == 'EXPRESS' else 1000,
-            "insurance_fee": 5000 if order["has_insurance"] else 0
+            "service_type": service_type,
+            "has_insurance": has_insurance,
+            "has_packing": has_packing,
+            "base_price_per_km": 1500 if service_type == 'EXPRESS' else 1000,
+            "insurance_fee": 5000 if has_insurance else 0
         })
 
-        # Get created_at as datetime
-        created_at = pd.to_datetime(order["created_at"])
+        created_at = datetime.datetime.now()
         date_key = get_or_create_date_key(conn, created_at)
-        
-        # Get location keys (normalize sender and recipient city names)
-        origin_location_key = get_or_create_location_key(conn, order["sender_city"])
-        destination_location_key = get_or_create_location_key(conn, order["recipient_city"])
-        
+
+        origin_location_key = get_or_create_location_key(conn, sender_city)
+        destination_location_key = get_or_create_location_key(conn, recipient_city)
+
         warehouse_key = conn.execute(text("SELECT warehouse_key FROM dim_warehouse WHERE warehouse_id = :warehouse_id"), {"warehouse_id": warehouse_id}).scalar()
-        service_key = conn.execute(text("SELECT service_key FROM dim_service WHERE service_type = :service_type"), {"service_type": order["service_type"]}).scalar()
-        
+        service_key = conn.execute(text("SELECT service_key FROM dim_service WHERE service_type = :service_type"), {"service_type": service_type}).scalar()
+
         # Calculate Volumetric Weight
-        volumetric_weight = (order["package_length"] * order["package_width"] * order["package_height"]) / 6000.0
+        volumetric_weight = (package_length * package_width * package_height) / 6000.0
 
         # ML Inference: Predict ETA duration in hours
-        is_express = (order["service_type"] == 'EXPRESS')
+        is_express = (service_type == 'EXPRESS')
         predicted_hours = predict_duration(
-            distance=float(order["distance"]),
-            weight=float(order["package_weight"]),
-            vol_weight=float(volumetric_weight),
+            distance=distance_km,
+            weight=package_weight,
+            vol_weight=volumetric_weight,
             is_express=is_express
         )
 
-        # Idempotent load to fact_shipment
         exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
-        
+
         params = {
             "awb": awb,
             "date_key": date_key,
@@ -409,10 +423,10 @@ def handle_order_created(awb):
             "courier_id": "N/A",
             "warehouse_key": warehouse_key,
             "service_key": service_key,
-            "order_status": order["status"],
-            "tarif_total": order["tarif_total"],
-            "distance_km": order["distance"],
-            "package_weight": order["package_weight"],
+            "order_status": order_status,
+            "tarif_total": tarif_total,
+            "distance_km": distance_km,
+            "package_weight": package_weight,
             "volumetric_weight": volumetric_weight,
             "predicted_duration_hours": predicted_hours,
             "driver_earnings": 0.0,
@@ -422,12 +436,12 @@ def handle_order_created(awb):
         if not exists:
             conn.execute(text("""
                 INSERT INTO fact_shipment (
-                    awb, date_key, origin_location_key, destination_location_key, courier_id, 
-                    warehouse_key, service_key, order_status, tarif_total, distance_km, package_weight, 
+                    awb, date_key, origin_location_key, destination_location_key, courier_id,
+                    warehouse_key, service_key, order_status, tarif_total, distance_km, package_weight,
                     volumetric_weight, predicted_duration_hours, driver_earnings, driver_rating
                 ) VALUES (
-                    :awb, :date_key, :origin_location_key, :destination_location_key, :courier_id, 
-                    :warehouse_key, :service_key, :order_status, :tarif_total, :distance_km, :package_weight, 
+                    :awb, :date_key, :origin_location_key, :destination_location_key, :courier_id,
+                    :warehouse_key, :service_key, :order_status, :tarif_total, :distance_km, :package_weight,
                     :volumetric_weight, :predicted_duration_hours, :driver_earnings, :driver_rating
                 )
             """), params)
@@ -450,57 +464,51 @@ def handle_order_created(awb):
             """), params)
             print(f"Updated shipment details in DWH for AWB: {awb} (Predicted ETA: {predicted_hours} hours)")
 
-def handle_dispatch_assigned(awb, courier_id):
-    print(f"Processing dispatch.assigned event for AWB: {awb}, Courier: {courier_id}")
-    # Extract courier details from shipping-db
-    with SHIPPING_ENGINE.connect() as src_conn:
-        courier = src_conn.execute(text("SELECT * FROM couriers WHERE id = :id"), {"id": courier_id}).mappings().first()
+def handle_dispatch_assigned(awb, courier_id, vehicle_type=None):
+    """Proses dispatch.assigned menggunakan data dari Kafka payload.
+    ETL tidak lagi query shipping-db — vehicle_type sudah dikirim oleh shipping-service."""
+    print(f"Processing dispatch.assigned event for AWB: {awb}, Courier: {courier_id}, Vehicle: {vehicle_type}")
 
-    if not courier:
-        print(f"WARNING: Courier with ID {courier_id} not found in Shipping DB.")
-        return
+    # Jika vehicle_type tidak ada di event (backward-compat), fallback ke shipping-db
+    if not vehicle_type:
+        print(f"[ETL Warning] vehicle_type kosong untuk courier {courier_id}, fallback ke query shipping-db...")
+        with SHIPPING_ENGINE.connect() as src_conn:
+            courier = src_conn.execute(text("SELECT vehicle_type FROM couriers WHERE id = :id"), {"id": courier_id}).mappings().first()
+        vehicle_type = courier["vehicle_type"] if courier else ""
 
     with DWH_ENGINE.begin() as conn:
-        # Get tarif_total of this shipment to calculate driver earnings
-        tarif_total = conn.execute(text("SELECT tarif_total FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
-        if tarif_total is None:
-            # Fallback to Order DB
-            with ORDER_ENGINE.connect() as src_conn:
-                tarif_total = src_conn.execute(text("SELECT tarif_total FROM orders WHERE awb = :awb"), {"awb": awb}).scalar() or 0.0
+        # Ambil tarif_total dari DWH (sudah diisi saat order.created)
+        tarif_total = conn.execute(text("SELECT tarif_total FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar() or 0.0
 
-        # Operational earnings calculation (e.g. 70% of total tariff goes to driver)
         driver_earnings = float(tarif_total) * 0.70
 
-        # Operational driver rating (calculated in shipping system, let's say average 4.7)
-        # We can dynamically vary it slightly based on vehicle type for realistic variety
-        driver_rating = 4.7
-        v_type = str(courier.get("vehicle_type", "")).upper()
-        if "MOTOR" in v_type:
+        # Rating ditentukan berdasarkan jenis kendaraan
+        v_type = str(vehicle_type).upper()
+        if "MOTOR" in v_type or "MOTORCYCLE" in v_type:
             driver_rating = 4.8
-        elif "CAR" in v_type or "VAN" in v_type:
-            driver_rating = 4.7
         elif "TRUCK" in v_type:
             driver_rating = 4.6
+        else:
+            driver_rating = 4.7
 
-        # Update fact_shipment
         exists = conn.execute(text("SELECT shipment_key FROM fact_shipment WHERE awb = :awb"), {"awb": awb}).scalar()
         if exists:
             conn.execute(text("""
-                UPDATE fact_shipment 
+                UPDATE fact_shipment
                 SET courier_id = :courier_id,
                     driver_earnings = :driver_earnings,
                     driver_rating = :driver_rating,
-                    order_status = 'PICKED_UP' 
+                    order_status = 'PICKED_UP'
                 WHERE awb = :awb
             """), {
-                "courier_id": courier_id, 
-                "driver_earnings": driver_earnings, 
-                "driver_rating": driver_rating, 
+                "courier_id": courier_id,
+                "driver_earnings": driver_earnings,
+                "driver_rating": driver_rating,
                 "awb": awb
             })
-            print(f"Updated shipment driver details (Courier: {courier_id}, Earnings: {driver_earnings}, Rating: {driver_rating}) for AWB: {awb}")
+            print(f"Updated shipment driver details (Courier: {courier_id}, Vehicle: {vehicle_type}, Earnings: {driver_earnings}) for AWB: {awb}")
         else:
-            print(f"WARNING: Order with AWB {awb} not found in fact_shipment. Cannot assign courier yet.")
+            print(f"WARNING: Order AWB {awb} tidak ada di fact_shipment. Dispatch update dilewati.")
 
 def handle_tracking_event(awb, status, location_code, event_time):
     print(f"Processing tracking event: AWB: {awb}, Status: {status}, Location: {location_code}")
@@ -692,15 +700,15 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
         elif self.path.startswith('/api/proxy/tracking'):
             query = self.path.split('?')[-1] if '?' in self.path else ''
-            target = f"http://tracking-app:8080/api/v1/tracking?{query}"
+            target = f"{TRACKING_SERVICE_URL}/api/v1/tracking?{query}"
             self.handle_proxy(target, method='GET')
         elif self.path.startswith('/api/proxy/couriers/location'):
             query = self.path.split('?')[-1] if '?' in self.path else ''
-            target = f"http://shipping-app:8080/api/v1/couriers/location?{query}"
+            target = f"{SHIPPING_SERVICE_URL}/api/v1/couriers/location?{query}"
             self.handle_proxy(target, method='GET')
         elif self.path.startswith('/api/proxy/couriers'):
             query = self.path.split('?')[-1] if '?' in self.path else ''
-            target = f"http://shipping-app:8080/api/v1/couriers?{query}"
+            target = f"{SHIPPING_SERVICE_URL}/api/v1/couriers?{query}"
             self.handle_proxy(target, method='GET')
         else:
             self.send_response(404)
@@ -712,19 +720,19 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
         body = json.loads(post_data.decode('utf-8')) if post_data else None
 
         if self.path == '/api/proxy/orders':
-            self.handle_proxy("http://order-app:8080/api/v1/orders", method='POST', body=body)
+            self.handle_proxy(f"{ORDER_SERVICE_URL}/api/v1/orders", method='POST', body=body)
         elif self.path == '/api/proxy/tariff/calculate':
-            self.handle_proxy("http://order-app:8080/api/v1/tariff/calculate", method='POST', body=body)
+            self.handle_proxy(f"{ORDER_SERVICE_URL}/api/v1/tariff/calculate", method='POST', body=body)
         elif self.path == '/api/proxy/couriers/register':
-            self.handle_proxy("http://shipping-app:8080/api/v1/couriers/register", method='POST', body=body)
+            self.handle_proxy(f"{SHIPPING_SERVICE_URL}/api/v1/couriers/register", method='POST', body=body)
         elif self.path == '/api/proxy/dispatch':
-            self.handle_proxy("http://shipping-app:8080/dispatch", method='POST', body=body)
+            self.handle_proxy(f"{SHIPPING_SERVICE_URL}/dispatch", method='POST', body=body)
         elif self.path == '/api/proxy/dispatches/confirm':
-            self.handle_proxy("http://shipping-app:8080/api/v1/dispatches/confirm", method='POST', body=body)
+            self.handle_proxy(f"{SHIPPING_SERVICE_URL}/api/v1/dispatches/confirm", method='POST', body=body)
         elif self.path == '/api/proxy/inbound':
-            self.handle_proxy("http://warehouse-app:8080/api/v1/inbound", method='POST', body=body)
+            self.handle_proxy(f"{WAREHOUSE_SERVICE_URL}/api/v1/inbound", method='POST', body=body)
         elif self.path == '/api/proxy/tracking/scan':
-            self.handle_proxy("http://tracking-app:8080/api/v1/tracking/scan", method='POST', body=body)
+            self.handle_proxy(f"{TRACKING_SERVICE_URL}/api/v1/tracking/scan", method='POST', body=body)
         else:
             self.send_response(404)
             self.end_headers()
@@ -854,9 +862,11 @@ def main():
     consumer = None
     for retry in range(12):
         try:
+            # Mendukung comma-separated list untuk Kafka cluster multi-broker
+            bootstrap_servers = [b.strip() for b in KAFKA_BROKER.split(",")]
             consumer = KafkaConsumer(
                 *topics,
-                bootstrap_servers=[KAFKA_BROKER],
+                bootstrap_servers=bootstrap_servers,
                 auto_offset_reset='earliest',
                 enable_auto_commit=True,
                 group_id='dwh-etl-consumer-group',
@@ -872,70 +882,68 @@ def main():
         print("CRITICAL: Failed to connect to Kafka. Exiting.")
         return
 
-    print("Listening for events...")
-    for message in consumer:
+    # Worker pool — SQLAlchemy engine sudah thread-safe dengan connection pooling
+    etl_workers = int(os.getenv("ETL_WORKERS", "4"))
+    executor = ThreadPoolExecutor(max_workers=etl_workers)
+    print(f"Listening for events with {etl_workers} worker threads...")
+
+    def process_message(payload, topic):
         try:
-            payload = message.value
-            topic = message.topic
-            print(f"Received message from topic {topic}: {payload}")
-            
-            # Map events to handlers
+            print(f"[Worker] Received event from topic {topic}: {payload.get('awb', payload.get('resi_id', '?'))}")
+
             if topic == "papiton.events.order":
                 awb = payload.get("awb")
+                event_metadata = payload.get("metadata", {})
                 if awb:
-                    handle_order_created(awb)
-            
+                    handle_order_created(awb, event_metadata=event_metadata)
+
             elif topic == "papiton.events.shipping":
                 awb = payload.get("awb")
                 metadata = payload.get("metadata", {})
                 courier_id = metadata.get("courier_id")
-                
-                # Check for notification trigger if it's matching picked_up
+                vehicle_type = metadata.get("vehicle_type", "")
                 event_type = payload.get("event_type", "package.picked_up")
-                
+
                 if awb and courier_id:
-                    handle_dispatch_assigned(awb, courier_id)
-                
-                # Log dispatch event as a notification status update
+                    handle_dispatch_assigned(awb, courier_id, vehicle_type=vehicle_type)
+
                 if awb:
                     handle_notification_sent(
                         awb=awb,
-                        channel="push", # Default channel
+                        channel="push",
                         event_type=event_type,
                         success=True,
                         notif_at_str=payload.get("occurred_at", datetime.datetime.now().isoformat())
                     )
-            
+
             elif topic == "papiton.events.tracking":
-                # Support both old and new tracking payload structures
                 awb = payload.get("resi_id") or payload.get("awb")
                 status = payload.get("activity_code") or payload.get("event_type") or "IN_TRANSIT"
                 if isinstance(status, str) and status.startswith("package."):
                     status = status.replace("package.", "").upper()
-                
-                # Check for location in metadata or root
+
                 metadata = payload.get("metadata", {})
                 location_code = payload.get("location_code") or metadata.get("location") or "WH-BDG"
-                # Strip "Warehouse " prefix if present to keep code clean
                 if isinstance(location_code, str) and location_code.startswith("Warehouse "):
                     location_code = location_code.replace("Warehouse ", "")
-                
+
                 event_time = payload.get("timestamp") or payload.get("occurred_at") or datetime.datetime.now().isoformat()
-                
+
                 if awb:
                     handle_tracking_event(awb, status, location_code, event_time)
-                    
-                    # Also log tracking as notification event
                     handle_notification_sent(
                         awb=awb,
-                        channel="email", # Customer gets update via email
+                        channel="email",
                         event_type=f"package.{status.lower()}",
                         success=True,
                         notif_at_str=event_time
                     )
-                    
+
         except Exception as e:
-            print(f"Error handling Kafka message: {e}")
+            print(f"[Worker] Error handling message from {topic}: {e}")
+
+    for message in consumer:
+        executor.submit(process_message, message.value, message.topic)
 
 if __name__ == "__main__":
     main()

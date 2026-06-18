@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/model"
@@ -27,12 +28,13 @@ func NewTrackingEventPublisher(topic string) TrackingEventPublisher {
 
 	log.Printf("[Kafka Producer] Menginisialisasi Kafka writer pada broker: %s, topik: %s", broker, topic)
 
+	brokerList := strings.Split(broker, ",")
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(broker),
+		Addr:         kafka.TCP(brokerList...),
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 1 * time.Second,
-		RequiredAcks: kafka.RequireNone,
+		RequiredAcks: kafka.RequireOne,
 		Async:        true,
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			log.Printf("[Kafka Producer Warning] Kesalahan asinkron Kafka: "+msg, args...)

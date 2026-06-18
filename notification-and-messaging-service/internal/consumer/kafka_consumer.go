@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
+	"sync"
 	"time"
 
 	"papiton/notification-service/internal/model"
@@ -36,6 +38,7 @@ type KafkaConsumer struct {
 	dispatcher MessageDispatcher
 	checker    IdempotencyChecker
 	dlqWriter  *kafka.Writer
+	wg         sync.WaitGroup
 }
 
 func NewKafkaConsumer(
@@ -46,11 +49,13 @@ func NewKafkaConsumer(
 	dispatcher MessageDispatcher,
 	checker IdempotencyChecker,
 ) *KafkaConsumer {
+	brokerList := strings.Split(brokers, ",")
 	dlqWriter := &kafka.Writer{
-		Addr:         kafka.TCP(brokers),
+		Addr:         kafka.TCP(brokerList...),
 		Topic:        "papiton.dlq.events",
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 2 * time.Second,
+		RequiredAcks: kafka.RequireOne,
 	}
 
 	return &KafkaConsumer{
@@ -65,6 +70,8 @@ func NewKafkaConsumer(
 }
 
 func (kc *KafkaConsumer) Close() error {
+	// Tunggu semua goroutine konsumer selesai sebelum menutup DLQ writer
+	kc.wg.Wait()
 	if kc.dlqWriter != nil {
 		return kc.dlqWriter.Close()
 	}
@@ -76,9 +83,12 @@ func (kc *KafkaConsumer) Start(ctx context.Context) error {
 	log.Printf("[KafkaConsumer] Mulai listening pada topics: %v", kc.topics)
 
 	for _, topic := range kc.topics {
+		kc.wg.Add(1)
 		go func(t string) {
+			defer kc.wg.Done()
+
 			r := kafka.NewReader(kafka.ReaderConfig{
-				Brokers:        []string{kc.brokers},
+				Brokers:        strings.Split(kc.brokers, ","),
 				GroupID:        kc.groupID,
 				Topic:          t,
 				MinBytes:       10e3, // 10KB
@@ -114,6 +124,8 @@ func (kc *KafkaConsumer) Start(ctx context.Context) error {
 	}
 
 	<-ctx.Done()
+	log.Println("[KafkaConsumer] Context selesai, menunggu semua goroutine berhenti...")
+	kc.wg.Wait()
 	log.Println("[KafkaConsumer] Seluruh goroutine pendengar dihentikan.")
 	return nil
 }
@@ -155,14 +167,14 @@ func (kc *KafkaConsumer) handleMessage(ctx context.Context, payload []byte) {
 
 	// 2. Retry Strategy: Exponential Backoff (Maksimal 5x percobaan ulang)
 	log.Printf("[KafkaConsumer Warning] Gagal dispatch notifikasi awal untuk AWB %s: %v. Memulai strategi retry...", event.AWB, err)
-	
+
 	maxRetries := 5
 	backoff := 1 * time.Second
 
 	for i := 1; i <= maxRetries; i++ {
 		log.Printf("[KafkaConsumer] Percobaan ulang ke-%d untuk event %s dalam %v...", i, event.EventID, backoff)
 		time.Sleep(backoff)
-		
+
 		err = kc.dispatcher.Dispatch(ctx, *notification)
 		if err == nil {
 			log.Printf("[KafkaConsumer] Notifikasi berhasil terkirim pada percobaan ulang ke-%d.", i)
@@ -171,7 +183,7 @@ func (kc *KafkaConsumer) handleMessage(ctx context.Context, payload []byte) {
 			}
 			return
 		}
-		
+
 		backoff *= 2 // Exponential backoff: 1s, 2s, 4s, 8s, 16s
 	}
 

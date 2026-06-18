@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"warehouse-inventory-service/internal/service"
@@ -25,12 +26,13 @@ func NewWarehouseEventPublisher(topic string) service.WarehouseEventPublisher {
 
 	log.Printf("[Warehouse Kafka Producer] Menginisialisasi Kafka writer pada broker: %s, topik: %s", broker, topic)
 
+	brokerList := strings.Split(broker, ",")
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(broker),
+		Addr:         kafka.TCP(brokerList...),
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 1 * time.Second,
-		RequiredAcks: kafka.RequireNone,
+		RequiredAcks: kafka.RequireOne,
 		Async:        true,
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			log.Printf("[Warehouse Kafka Producer Warning] Kesalahan asinkron Kafka: "+msg, args...)

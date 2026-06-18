@@ -11,11 +11,12 @@ services:
       - "8080:8080"
     environment:
       - DB_HOST=warehouse-db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=papiton_warehouse
+      - DB_USER=${WAREHOUSE_DB_USER:-postgres}
+      - DB_PASSWORD=${WAREHOUSE_DB_PASSWORD:-postgres}
+      - DB_NAME=${WAREHOUSE_DB_NAME:-papiton_warehouse}
       - DB_PORT=5432
-      - KAFKA_BROKER=kafka:29092
+      - KAFKA_BROKER=kafka:29092,kafka2:29093,kafka3:29094
+      - API_KEY=${API_KEY:-}
     depends_on:
       warehouse-db:
         condition: service_healthy
@@ -26,9 +27,9 @@ services:
     image: postgres:15-alpine
     container_name: warehouse-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: papiton_warehouse
+      POSTGRES_USER: ${WAREHOUSE_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${WAREHOUSE_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${WAREHOUSE_DB_NAME:-papiton_warehouse}
     ports:
       - "5432:5432"
     volumes:
@@ -52,11 +53,12 @@ services:
     environment:
       - DB_HOST=shipping-db
       - DB_PORT=5432
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=shipping_test_db
+      - DB_USER=${SHIPPING_DB_USER:-user}
+      - DB_PASSWORD=${SHIPPING_DB_PASSWORD:-password}
+      - DB_NAME=${SHIPPING_DB_NAME:-shipping_test_db}
       - MONGO_URI=mongodb://shipping-mongo:27017
-      - KAFKA_BROKER=kafka:29092
+      - KAFKA_BROKER=kafka:29092,kafka2:29093,kafka3:29094
+      - API_KEY=${API_KEY:-}
     depends_on:
       shipping-db:
         condition: service_healthy
@@ -69,9 +71,9 @@ services:
     image: postgres:15-alpine
     container_name: shipping-db
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: shipping_test_db
+      POSTGRES_USER: ${SHIPPING_DB_USER:-user}
+      POSTGRES_PASSWORD: ${SHIPPING_DB_PASSWORD:-password}
+      POSTGRES_DB: ${SHIPPING_DB_NAME:-shipping_test_db}
     ports:
       - "5433:5432" # Diakses via port 5433 di localhost untuk menghindari konflik
     volumes:
@@ -89,6 +91,8 @@ services:
     container_name: shipping-mongo
     ports:
       - "27017:27017"
+    volumes:
+      - shipping_mongodata:/data/db
     networks:
       - papiton-net
 
@@ -102,13 +106,14 @@ services:
       - "8082:8080" # Diakses via port 8082 di localhost
     environment:
       - DB_HOST=order-db
-      - DB_USER=postgres
-      - DB_PASSWORD=admin123
-      - DB_NAME=papiton_order_tariff_service_db
+      - DB_USER=${ORDER_DB_USER:-postgres}
+      - DB_PASSWORD=${ORDER_DB_PASSWORD:-admin123}
+      - DB_NAME=${ORDER_DB_NAME:-papiton_order_tariff_service_db}
       - DB_PORT=5432
       - REDIS_HOST=order-redis
       - REDIS_PORT=6379
-      - KAFKA_BROKER=kafka:29092
+      - KAFKA_BROKER=kafka:29092,kafka2:29093,kafka3:29094
+      - API_KEY=${API_KEY:-}
     depends_on:
       order-db:
         condition: service_healthy
@@ -122,9 +127,9 @@ services:
     image: postgres:15-alpine
     container_name: order-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin123
-      POSTGRES_DB: papiton_order_tariff_service_db
+      POSTGRES_USER: ${ORDER_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD:-admin123}
+      POSTGRES_DB: ${ORDER_DB_NAME:-papiton_order_tariff_service_db}
     ports:
       - "5434:5432" # Diakses via port 5434 di localhost untuk menghindari konflik
     volumes:
@@ -142,6 +147,8 @@ services:
     container_name: order-redis
     ports:
       - "6379:6379"
+    volumes:
+      - order_redisdata:/data
     networks:
       - papiton-net
 
@@ -156,7 +163,8 @@ services:
     environment:
       - MONGO_URI=mongodb://tracking-mongo:27017
       - DB_NAME=tracking_db
-      - KAFKA_BROKER=kafka:29092
+      - KAFKA_BROKER=kafka:29092,kafka2:29093,kafka3:29094
+      - API_KEY=${API_KEY:-}
     depends_on:
       - tracking-mongo
     networks:
@@ -181,20 +189,26 @@ services:
     ports:
       - "8084:8080" # Diakses via port 8084 di localhost
     environment:
-      - KAFKA_BROKER=kafka:29092
+      - KAFKA_BROKER=kafka:29092,kafka2:29093,kafka3:29094
       - KAFKA_GROUP_ID=notification-service-group
       - DB_HOST=notification-db
       - DB_PORT=5432
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=notification_db
-      - FCM_SERVER_KEY=${FCM_SERVER_KEY}
+      - DB_USER=${NOTIFICATION_DB_USER:-user}
+      - DB_PASSWORD=${NOTIFICATION_DB_PASSWORD:-password}
+      - DB_NAME=${NOTIFICATION_DB_NAME:-notification_db}
+      - FCM_PROJECT_ID=${FCM_PROJECT_ID}
+      - FCM_SERVICE_ACCOUNT_JSON=${FCM_SERVICE_ACCOUNT_JSON}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - API_KEY=${API_KEY:-}
     depends_on:
       kafka:
+        condition: service_started
+      kafka2:
+        condition: service_started
+      kafka3:
         condition: service_started
       notification-db:
         condition: service_healthy
@@ -205,9 +219,9 @@ services:
     image: postgres:15-alpine
     container_name: notification-db
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: notification_db
+      POSTGRES_USER: ${NOTIFICATION_DB_USER:-user}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-password}
+      POSTGRES_DB: ${NOTIFICATION_DB_NAME:-notification_db}
     ports:
       - "5436:5432" # Diakses via port 5436 di localhost untuk menghindari konflik
     volumes:
@@ -229,6 +243,9 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
     networks:
       - papiton-net
 
@@ -242,9 +259,54 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+    networks:
+      - papiton-net
+
+  kafka2:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka2
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093,PLAINTEXT_INTERNAL://kafka2:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka2_data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+    networks:
+      - papiton-net
+
+  kafka3:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka3
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9094,PLAINTEXT_INTERNAL://kafka3:29094
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka3_data:/var/lib/kafka/data
     depends_on:
       - zookeeper
     networks:
@@ -255,9 +317,9 @@ services:
     image: postgres:15-alpine
     container_name: dwh-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: dwhpassword
-      POSTGRES_DB: papiton_dwh
+      POSTGRES_USER: ${DWH_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DWH_DB_PASSWORD:-dwhpassword}
+      POSTGRES_DB: ${DWH_DB_NAME:-papiton_dwh}
     ports:
       - "5435:5432"
     volumes:
@@ -279,15 +341,24 @@ services:
     ports:
       - "8085:8085"
     environment:
-      - KAFKA_BROKER=kafka:29092
-      - ORDER_DB_URL=postgresql://postgres:admin123@order-db:5432/papiton_order_tariff_service_db
-      - SHIPPING_DB_URL=postgresql://user:password@shipping-db:5432/shipping_test_db
-      - WAREHOUSE_DB_URL=postgresql://postgres:postgres@warehouse-db:5432/papiton_warehouse
-      - DWH_DB_URL=postgresql://postgres:dwhpassword@dwh-db:5432/papiton_dwh
+      - KAFKA_BROKER=kafka:29092,kafka2:29093,kafka3:29094
+      - ORDER_DB_URL=postgresql://${ORDER_DB_USER:-postgres}:${ORDER_DB_PASSWORD:-admin123}@order-db:5432/${ORDER_DB_NAME:-papiton_order_tariff_service_db}
+      - SHIPPING_DB_URL=postgresql://${SHIPPING_DB_USER:-user}:${SHIPPING_DB_PASSWORD:-password}@shipping-db:5432/${SHIPPING_DB_NAME:-shipping_test_db}
+      - WAREHOUSE_DB_URL=postgresql://${WAREHOUSE_DB_USER:-postgres}:${WAREHOUSE_DB_PASSWORD:-postgres}@warehouse-db:5432/${WAREHOUSE_DB_NAME:-papiton_warehouse}
+      - DWH_DB_URL=postgresql://${DWH_DB_USER:-postgres}:${DWH_DB_PASSWORD:-dwhpassword}@dwh-db:5432/${DWH_DB_NAME:-papiton_dwh}
       - MONGO_URI=mongodb://tracking-mongo:27017
       - MONGO_DB_NAME=tracking_db
+      - ORDER_SERVICE_URL=http://order-app:8080
+      - SHIPPING_SERVICE_URL=http://shipping-app:8080
+      - WAREHOUSE_SERVICE_URL=http://warehouse-app:8080
+      - TRACKING_SERVICE_URL=http://tracking-app:8080
+      - ETL_WORKERS=4
     depends_on:
       kafka:
+        condition: service_started
+      kafka2:
+        condition: service_started
+      kafka3:
         condition: service_started
       order-db:
         condition: service_healthy
@@ -309,5 +380,12 @@ volumes:
   shipping_pgdata:
   order_pgdata:
   tracking_mongodata:
+  shipping_mongodata:
   dwh_pgdata:
   notification_pgdata:
+  order_redisdata:
+  kafka_data:
+  kafka2_data:
+  kafka3_data:
+  zookeeper_data:
+  zookeeper_log:

@@ -74,11 +74,12 @@ func (s *dispatchService) AutoDispatchPickUp(
 		return nil, err
 	}
 
-	// 3. Buat instruksi dispatch baru
+	// 3. Buat instruksi dispatch baru — sertakan VehicleType agar ETL tidak perlu query shipping-db
 	dispatch := &domain.Dispatch{
 		ID:               "DSP-" + orderID,
 		OrderID:          orderID,
 		CourierID:        selectedCourier.ID,
+		VehicleType:      selectedCourier.VehicleType,
 		Status:           domain.DispatchStatusAssigned,
 		RouteInstruction: "Jemput paket di zona " + pickupZone,
 	}

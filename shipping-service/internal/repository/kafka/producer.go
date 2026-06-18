@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/madgeer/papiton-express/shipping-service/internal/domain"
@@ -24,12 +25,13 @@ func NewDispatchEventPublisher(topic string) domain.DispatchEventPublisher {
 
 	log.Printf("[Shipping Kafka Producer] Menginisialisasi Kafka writer pada broker: %s, topik: %s", broker, topic)
 
+	brokerList := strings.Split(broker, ",")
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(broker),
+		Addr:         kafka.TCP(brokerList...),
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 1 * time.Second,
-		RequiredAcks: kafka.RequireNone,
+		RequiredAcks: kafka.RequireOne,
 		Async:        true,
 		ErrorLogger: kafka.LoggerFunc(func(msg string, args ...interface{}) {
 			log.Printf("[Shipping Kafka Producer Warning] Kesalahan asinkron Kafka: "+msg, args...)
@@ -48,15 +50,16 @@ func (p *dispatchEventPublisher) PublishDispatchAssigned(ctx context.Context, di
 		return nil
 	}
 
-	// Payload kompatibel dengan Notification Service (memetakan dispatch.assigned ke package.picked_up)
+	// Payload diperkaya dengan vehicle_type agar ETL tidak perlu query shipping-db.
 	payload := map[string]interface{}{
 		"event_id":    "EVT-DSP-" + dispatch.ID + "-" + time.Now().Format("20060102150405"),
-		"event_type":  "package.picked_up", // Menggunakan tipe event yang dipahami oleh Notification Service
-		"user_id":     "customer@papiton.id", // Menggunakan email default sebagai UserID fallback
-		"awb":         dispatch.OrderID,     // OrderID merepresentasikan AWB resi
+		"event_type":  "package.picked_up",
+		"user_id":     "customer@papiton.id",
+		"awb":         dispatch.OrderID,
 		"occurred_at": time.Now(),
 		"metadata": map[string]string{
 			"courier_id":        dispatch.CourierID,
+			"vehicle_type":      dispatch.VehicleType,
 			"status":            "dispatch.assigned",
 			"route_instruction": dispatch.RouteInstruction,
 		},

@@ -53,12 +53,24 @@ type OrderResponse struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-// Event untuk Notification service
+// OrderCreatedEvent membawa semua data yang dibutuhkan consumer (Notification, ETL)
+// agar mereka tidak perlu query balik ke order-db.
 type OrderCreatedEvent struct {
-	AWB       string    `json:"awb"`
-	Email     string    `json:"email"` //email penerima/pengirim untuk notification
-	Status    string    `json:"status"`
-	Timestamp time.Time `json:"timestamp"`
+	AWB              string    `json:"awb"`
+	Email            string    `json:"email"`
+	Status           string    `json:"status"`
+	Timestamp        time.Time `json:"timestamp"`
+	ServiceType      string    `json:"service_type"`
+	HasInsurance     bool      `json:"has_insurance"`
+	HasPacking       bool      `json:"has_packing"`
+	SenderCity       string    `json:"sender_city"`
+	RecipientCity    string    `json:"recipient_city"`
+	PackageWeight    float64   `json:"package_weight"`
+	PackageLength    float64   `json:"package_length"`
+	PackageWidth     float64   `json:"package_width"`
+	PackageHeight    float64   `json:"package_height"`
+	TarifTotal       float64   `json:"tarif_total"`
+	DistanceKM       float64   `json:"distance_km"`
 }
 
 // INTERFACE

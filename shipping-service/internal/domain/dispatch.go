@@ -18,11 +18,12 @@ const (
 )
 
 type Dispatch struct {
-	ID string `json:"id"`
-	OrderID string `json:"order_id"`
-	CourierID string `json:"courier_id"`
-	Status DispatchStatus `json:"status"`
-	RouteInstruction string `json:"route_instruction"`
+	ID               string         `json:"id"`
+	OrderID          string         `json:"order_id"`
+	CourierID        string         `json:"courier_id"`
+	VehicleType      string         `json:"vehicle_type"`
+	Status           DispatchStatus `json:"status"`
+	RouteInstruction string         `json:"route_instruction"`
 }
 
 // DispatchRepository 
