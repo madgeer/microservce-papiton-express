@@ -9,6 +9,7 @@ import (
 
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/handler"
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/repository"
+	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/repository/kafka"
 	"github.com/madgeer/papiton-express/tracking-and-logevent-service/internal/service"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -56,8 +57,8 @@ func main() {
 	logEventRepo := repository.NewMongoLogEventRepo(db)
 	trackingRepo := repository.NewMongoTrackingRepo(db)
 
-	logEventSvc := service.NewLogEventService(logEventRepo)
-	_ = logEventSvc
+	kafkaPub := kafka.NewTrackingEventPublisher("papiton.events.tracking")
+	logEventSvc := service.NewLogEventService(logEventRepo, kafkaPub)
 	trackingSvc := service.NewTrackingService(trackingRepo)
 
 	trackingHandler := handler.NewTrackingAPIHandler(trackingSvc)

@@ -156,6 +156,7 @@ services:
     environment:
       - MONGO_URI=mongodb://tracking-mongo:27017
       - DB_NAME=tracking_db
+      - KAFKA_BROKER=kafka:29092
     depends_on:
       - tracking-mongo
     networks:
@@ -182,16 +183,35 @@ services:
     environment:
       - KAFKA_BROKER=kafka:29092
       - KAFKA_GROUP_ID=notification-service-group
-      - DB_HOST=shipping-db
+      - DB_HOST=notification-db
       - DB_PORT=5432
       - DB_USER=user
       - DB_PASSWORD=password
-      - DB_NAME=shipping_test_db
+      - DB_NAME=notification_db
     depends_on:
       kafka:
         condition: service_started
-      shipping-db:
+      notification-db:
         condition: service_healthy
+    networks:
+      - papiton-net
+
+  notification-db:
+    image: postgres:15-alpine
+    container_name: notification-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: notification_db
+    ports:
+      - "5436:5432" # Diakses via port 5436 di localhost untuk menghindari konflik
+    volumes:
+      - notification_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d notification_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - papiton-net
 
@@ -285,3 +305,4 @@ volumes:
   order_pgdata:
   tracking_mongodata:
   dwh_pgdata:
+  notification_pgdata:

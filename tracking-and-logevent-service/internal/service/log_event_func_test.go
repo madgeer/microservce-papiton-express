@@ -29,7 +29,7 @@ func TestProcessLog_DB_Failed(t *testing.T) {
 
 	// Persiapan Service & Repository E2E
 	repo := repository.NewMongoLogEventRepo(db)
-	svc := NewLogEventService(repo)
+	svc := NewLogEventService(repo, nil)
 
 	// Eksekusi fungsi end-to-end
 	dummyLog := model.TrackingLog{ResiID: "RESI-123456", ActivityCode: "DELIVERED"}

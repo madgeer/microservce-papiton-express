@@ -4,17 +4,21 @@ import (
 	"database/sql"
 	"math"
 	"order-tariff-service/internal/domain"
+	"order-tariff-service/internal/repository/redis"
 	"strings"
+
+	gredis "github.com/redis/go-redis/v9"
 )
 
 // struct implementasi repository
 type OrderRepositoryImpl struct {
-	db *sql.DB
+	db  *sql.DB
+	rdb *gredis.Client
 }
 
 // constructor
-func NewOrderRepository(db *sql.DB) *OrderRepositoryImpl {
-	return &OrderRepositoryImpl{db: db}
+func NewOrderRepository(db *sql.DB, rdb *gredis.Client) *OrderRepositoryImpl {
+	return &OrderRepositoryImpl{db: db, rdb: rdb}
 }
 
 func (r *OrderRepositoryImpl) SaveOrder(req domain.OrderRequest, res domain.OrderResponse) error {
@@ -107,8 +111,7 @@ func (r *OrderRepositoryImpl) GetDistance(origin, dest domain.Koordinat) (float6
 }
 
 func (r *OrderRepositoryImpl) GetPricingFromCache(key string) (float64, error) {
-	// Skenario fallback jika Redis belum tersambung
-	return 0.0, nil
+	return redis.GetPricing(r.rdb, key)
 }
 
 func (r *OrderRepositoryImpl) GetCityCode(cityName string) (string, error) {

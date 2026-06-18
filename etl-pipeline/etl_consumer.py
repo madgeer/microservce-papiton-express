@@ -694,6 +694,10 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
             query = self.path.split('?')[-1] if '?' in self.path else ''
             target = f"http://tracking-app:8080/api/v1/tracking?{query}"
             self.handle_proxy(target, method='GET')
+        elif self.path.startswith('/api/proxy/couriers/location'):
+            query = self.path.split('?')[-1] if '?' in self.path else ''
+            target = f"http://shipping-app:8080/api/v1/couriers/location?{query}"
+            self.handle_proxy(target, method='GET')
         elif self.path.startswith('/api/proxy/couriers'):
             query = self.path.split('?')[-1] if '?' in self.path else ''
             target = f"http://shipping-app:8080/api/v1/couriers?{query}"
@@ -719,6 +723,8 @@ class DashboardAPIHandler(BaseHTTPRequestHandler):
             self.handle_proxy("http://shipping-app:8080/api/v1/dispatches/confirm", method='POST', body=body)
         elif self.path == '/api/proxy/inbound':
             self.handle_proxy("http://warehouse-app:8080/api/v1/inbound", method='POST', body=body)
+        elif self.path == '/api/proxy/tracking/scan':
+            self.handle_proxy("http://tracking-app:8080/api/v1/tracking/scan", method='POST', body=body)
         else:
             self.send_response(404)
             self.end_headers()

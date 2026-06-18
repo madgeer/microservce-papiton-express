@@ -117,6 +117,13 @@ func (s *dispatchService) UpdateCourierGPS(ctx context.Context, courierID string
 	return s.locationRepo.UpdateLocation(ctx, loc)
 }
 
+func (s *dispatchService) GetCourierGPS(ctx context.Context, courierID string) (*domain.CourierLocation, error) {
+	if s.locationRepo == nil {
+		return nil, errors.New("location repository not initialized")
+	}
+	return s.locationRepo.GetLatestLocation(ctx, courierID)
+}
+
 func (s *dispatchService) GetCourier(ctx context.Context, id string) (*domain.Courier, error) {
 	if s.courierRepo == nil {
 		return nil, errors.New("courier repository not initialized")

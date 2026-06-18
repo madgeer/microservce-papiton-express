@@ -64,6 +64,20 @@ node {
             currentBuild.result = 'UNSTABLE'
         }
 
+        // --- STAGE: START DATABASES (Untuk Functional Tests) ---
+        try {
+            stage('Start Databases') {
+                echo 'Starting MongoDB container for functional tests...'
+                sh 'docker rm -f tracking-mongo-test || true'
+                sh 'docker run -d --name tracking-mongo-test -p 27017:27017 mongo:6-jammy'
+                echo 'Waiting for MongoDB to be ready...'
+                sh 'sleep 10'
+            }
+        } catch (Exception e) {
+            stageFailures['Start Databases'] = e.message
+            currentBuild.result = 'UNSTABLE'
+        }
+
         // --- STAGE: FUNCTIONAL TESTS ---
         try {
             stage('Functional Tests') {
@@ -109,5 +123,11 @@ node {
         currentBuild.result = 'FAILURE'
         echo "Pipeline aborted due to critical error: ${err.message}"
         throw err
+    } finally {
+        stage('Cleanup') {
+            echo 'Cleaning up database containers...'
+            sh 'docker rm -f tracking-mongo-test || true'
+            echo 'Pipeline execution completed.'
+        }
     }
 }

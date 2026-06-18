@@ -27,7 +27,7 @@ func TestCreateOrderFlow_Functional(t *testing.T) {
 	defer db.Close()
 
 	//init repo & service
-	repo := postgres.NewOrderRepository(db)
+	repo := postgres.NewOrderRepository(db, nil)
 	svc := service.NewOrderService(repo, nil)
 
 	//dummy request

@@ -19,3 +19,6 @@ spec:
         image: tracking-service:latest
         ports:
         - containerPort: 8080
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:9092"

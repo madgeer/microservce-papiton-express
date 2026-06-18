@@ -82,3 +82,9 @@ export async function apiSendManualScan(payload) {
   });
   return response.json();
 }
+
+export async function apiGetCourierLocation(courierID) {
+  const response = await fetch(`${PROXY_URL}/api/proxy/couriers/location?courier_id=${courierID}`);
+  if (!response.ok) throw new Error('Location not found');
+  return response.json();
+}

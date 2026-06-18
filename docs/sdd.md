@@ -76,7 +76,7 @@ graph TD
         NotifDB[(Notif Log DB: PostgreSQL/InMemory)] --- NotifSvc[Notification & Messaging Service]
     end
 
-    subgraph Message Broker (Kafka)
+    subgraph Message Broker
         OrderTopic((papiton.events.order))
         ShippingTopic((papiton.events.shipping))
         TrackingTopic((papiton.events.tracking))

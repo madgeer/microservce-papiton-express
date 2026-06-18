@@ -167,9 +167,36 @@ func (h *DispatchHandler) UpdateCourierStatus(w http.ResponseWriter, r *http.Req
 func (h *DispatchHandler) UpdateCourierLocation(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Support GET to read location
+	if r.Method == http.MethodGet {
+		courierID := r.URL.Query().Get("courier_id")
+		if courierID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"message": "courier_id diperlukan"})
+			return
+		}
+
+		loc, err := h.service.GetCourierGPS(r.Context(), courierID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"message": err.Error()})
+			return
+		}
+		if loc == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"message": "lokasi kurir belum tercatat"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(loc)
+		return
+	}
+
+	// Support POST / PUT to update location
 	if r.Method != http.MethodPut && r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Method tidak diizinkan, wajib PUT atau POST"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Method tidak diizinkan, wajib GET, PUT, atau POST"})
 		return
 	}
 

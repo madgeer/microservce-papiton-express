@@ -3,6 +3,20 @@
 import * as api from './api.js';
 import * as ui from './ui.js';
 
+let mapInstance = null;
+let markerInstance = null;
+
+const LocationCoords = {
+  'WH-BDG': [-6.9175, 107.6191],
+  'WH-BDO': [-6.9175, 107.6191],
+  'BANDUNG': [-6.9175, 107.6191],
+  'WH-JKT': [-6.2088, 106.8456],
+  'JAKARTA': [-6.2088, 106.8456],
+  'WH-SUB': [-7.2575, 112.7521],
+  'SURABAYA': [-7.2575, 112.7521],
+  'WH-UPI': [-6.8619, 107.5944] // Kampus UPI Bandung
+};
+
 // Fallback Mock Data in case DWH backend is offline
 const fallbackData = {
   total_delivery: 12540,
@@ -180,6 +194,58 @@ async function processInbound() {
   }
 }
 
+async function updateTrackingMap(historyLogs) {
+  if (!historyLogs || historyLogs.length === 0) return;
+
+  const latestStep = historyLogs[historyLogs.length - 1];
+  const locCode = (latestStep.location_code || '').toUpperCase();
+  
+  // Resolve base coordinate
+  let coords = LocationCoords[locCode] || [-6.9175, 107.6191]; // Fallback to Bandung
+  let popupText = `Lokasi Paket: ${latestStep.location_code} (Status: ${latestStep.activity_code})`;
+
+  // If status is active delivery/pickup, poll live GPS courier from MongoDB database
+  if (latestStep.activity_code === 'PICKED_UP' || latestStep.activity_code === 'OUT_FOR_DELIVERY') {
+    try {
+      // Default courier ID used in system
+      const courierLoc = await api.apiGetCourierLocation('C-001');
+      if (courierLoc && courierLoc.latitude && courierLoc.longitude) {
+        coords = [courierLoc.latitude, courierLoc.longitude];
+        popupText = `<b>Kurir C-001 (Live GPS)</b><br>Sedang mengantarkan paket.<br>Koordinat: ${courierLoc.latitude.toFixed(4)}, ${courierLoc.longitude.toFixed(4)}`;
+      }
+    } catch (e) {
+      console.warn("Gagal mendapatkan koordinat GPS live kurir, menggunakan fallback lokasi kota:", e);
+    }
+  }
+
+  try {
+    if (!mapInstance) {
+      mapInstance = L.map('trackingMap').setView(coords, 13);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(mapInstance);
+    } else {
+      mapInstance.setView(coords, 13);
+    }
+
+    if (markerInstance) {
+      mapInstance.removeLayer(markerInstance);
+    }
+
+    markerInstance = L.marker(coords).addTo(mapInstance)
+      .bindPopup(popupText)
+      .openPopup();
+
+    // Invalidate size in case Leaflet container was hidden during initialization
+    setTimeout(() => {
+      mapInstance.invalidateSize();
+    }, 200);
+  } catch (err) {
+    console.error("Leaflet map initialization error:", err);
+  }
+}
+
 // 8. Track & Trace Awb
 async function trackAwb() {
   const resi = document.getElementById('searchAwb').value;
@@ -199,6 +265,7 @@ async function trackAwb() {
     }
     resultArea.style.display = 'block';
     ui.renderTrackingTimeline(data.history);
+    updateTrackingMap(data.history);
   } catch (e) {
     errAlert.classList.add('active');
   }

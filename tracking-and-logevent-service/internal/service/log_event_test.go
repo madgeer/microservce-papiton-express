@@ -18,7 +18,7 @@ func TestProcessLog_Failed(t *testing.T) {
 	// Simulasi respons sukses dari database saat InsertLog dipanggil.
 	mockRepo.EXPECT().InsertLog(dummyLog).Return(nil).Times(1)
 
-	svc := NewLogEventService(mockRepo)
+	svc := NewLogEventService(mockRepo, nil)
 	err := svc.ProcessLog(dummyLog)
 
 	// Memastikan pengujian gagal karena fungsi ProcessLog mengembalikan error buatan.
