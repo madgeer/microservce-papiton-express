@@ -942,3 +942,43 @@ Berikut adalah ringkasan rancangan visualisasi dashboard yang direkomendasikan u
 | **5** | Volume Pengiriman Geografis | **Geo-Map Chart** | `dim_location.province` (Peta Provinsi Penerima) | `COUNT(shipment_key)` | Eksekutif & Marketing |
 | **6** | Kinerja & Pendapatan Driver | **Table & Line Chart** | `dim_location.province` (Wilayah) & `dim_date` | `AVG(driver_earnings)`, `AVG(driver_rating)`, `COUNT(DISTINCT courier_id)` | Manajer Armada & Operasional |
 | **7** | Analisis Keberhasilan Notifikasi | **Stacked Column Chart** | `fact_notification.channel` & `event_type` | `success` (True/False count) | Tim IT Support & DevOps |
+
+---
+
+## 10. AUTOMATED MACHINE LEARNING RETRAINING FOR ETA PREDICTION
+
+### 10.1 Arsitektur Prediksi & Retraining Loop
+Sistem PAPITON Express menerapkan model pembelajaran mesin (*Machine Learning*) regresi linear untuk memprediksi perkiraan durasi waktu pengiriman (ETA) secara dinamis. Alur data dan retraining loop dirancang sebagai berikut:
+
+```mermaid
+sequenceDiagram
+    participant Kafka as Kafka Broker
+    participant ETL as ETL Pipeline (Python)
+    participant DWH as PostgreSQL DWH
+    participant ML as ML Model (Linear Regression)
+
+    Kafka->>ETL: Consume event (package.delivered)
+    ETL->>DWH: Update actual_duration_hours & eta_prediction_error
+    ETL->>ETL: Spawn background thread (train_model)
+    critical Retraining Triggered
+        ETL->>DWH: Fetch historical delivered shipments (min 3 records)
+        DWH-->>ETL: Return dataset (distance, weight, is_express, actual_hours)
+        ETL->>ML: Fit linear regression model
+        ETL->>ML: Save trained model (eta_model.pkl)
+    end
+```
+
+### 10.2 Spesifikasi Model Pembelajaran Mesin
+*   **Algoritma**: Regresi Linear Berganda (*Multiple Linear Regression*) menggunakan pustaka Scikit-Learn Python.
+*   **Fitur Input (X)**:
+    1.  `distance_km` (Jarak geografis pengiriman)
+    2.  `package_weight` (Berat aktual paket)
+    3.  `volumetric_weight` (Berat volumetrik: $(L \times W \times H) / 6000$)
+    4.  `is_express` (Variabel biner: 1 untuk layanan EXPRESS, 0 untuk REGULAR)
+*   **Target Output (y)**: `actual_duration_hours` (Durasi pengiriman aktual dalam jam).
+
+### 10.3 Mekanisme Pemicu Retraining (Trigger Mechanism)
+1.  Setiap kali kurir melakukan pemindaian paket dengan status **DELIVERED**, event dikirim melalui Kafka ke topik tracking.
+2.  ETL Consumer menghitung durasi aktual (`actual_duration_hours` = waktu terkirim - waktu order dibuat) dan menghitung selisih prediksi (`eta_prediction_error` = durasi aktual - durasi prediksi).
+3.  ETL Consumer menyimpan data tersebut ke DWH dan secara otomatis memicu *thread background* untuk melatih ulang model regresi linear menggunakan seluruh riwayat data sukses di DWH (minimal 3 record historis).
+4.  Model yang diperbarui disimpan ke dalam berkas serialisasi `eta_model.pkl` dan langsung digunakan secara real-time untuk kalkulasi inferensi estimasi waktu pengiriman (ETA) order baru berikutnya.
