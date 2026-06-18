@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAPITON Express — Staff Portal</title>
+  
+  <!-- Typography & ChartJS CDNs -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Modular Stylesheet -->
+  <link rel="stylesheet" href="./css/styles.css">
+  
+  <!-- Leaflet CSS & JS for GPS Map Tracking -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+  <!-- 1. LEFT SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <div class="sidebar-header" style="cursor: pointer;" onclick="window.location.href='index.html'">
+      <div class="logo">PE</div>
+      <span class="brand-name">PAPITON Express</span>
+    </div>
+    
+    <ul class="nav-menu">
+      <li class="nav-item active" onclick="switchTab('dashboard')">
+        <span>📊</span> Dashboard DWH
+      </li>
+      <li class="nav-item" onclick="switchTab('customer')">
+        <span>👤</span> Customer Desk
+      </li>
+      <li class="nav-item" onclick="switchTab('driver')">
+        <span>🚴</span> Driver Dispatch
+      </li>
+      <li class="nav-item" onclick="switchTab('warehouse')">
+        <span>📦</span> Warehouse Scan
+      </li>
+      <li class="nav-item" onclick="switchTab('tracking')">
+        <span>🔍</span> Track & Trace
+      </li>
+    </ul>
+
+    <!-- Active Variables Card -->
+    <div class="variables-box">
+      <div class="variables-title">Variabel Aktif</div>
+      <div class="var-line">
+        <span>AWB:</span>
+        <span class="var-val" id="activeAwb">RESI-EMPTY</span>
+      </div>
+      <div class="var-line">
+        <span>Dispatch:</span>
+        <span class="var-val" id="activeDispatch">DSP-EMPTY</span>
+      </div>
+      <div class="var-line">
+        <span>Manifest:</span>
+        <span class="var-val" id="activeManifest">MAN-EMPTY</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 2. MAIN AREA -->
+  <div class="main-content">
+    
+    <!-- Top Sync bar -->
+    <div class="topbar">
+      <div class="sync-badge">
+        <div class="pulse-dot"></div>
+        <span id="syncText">DWH Live Sync: Connecting...</span>
+      </div>
+    </div>
+
+    <!-- TAB 1: ANALYTICS DASHBOARD -->
+    <section id="tab-dashboard" class="tab-content active">
+      <h2 class="page-title">Dashboard Analitik Logistik</h2>
+      <p class="page-subtitle">Agregasi performa logistik & ML langsung dari PostgreSQL Data Warehouse</p>
+
+      <!-- KPI scorecards -->
+      <div class="kpi-grid">
+        <div class="glass-card kpi-card kpi-del">
+          <div class="kpi-label">Total Pengiriman (L1)</div>
+          <div class="kpi-val" id="kpiTotalDelivery">-</div>
+          <div class="kpi-sub">Jumlah total paket/AWB di DWH</div>
+        </div>
+        <div class="glass-card kpi-card kpi-rev">
+          <div class="kpi-label">Total Omzet (L1)</div>
+          <div class="kpi-val" id="kpiRevenue">-</div>
+          <div class="kpi-sub">Pendapatan kotor transaksi</div>
+        </div>
+        <div class="glass-card kpi-card kpi-dur">
+          <div class="kpi-label">Rerata Durasi Pengiriman (L6)</div>
+          <div class="kpi-val" id="kpiAvgTime">-</div>
+          <div class="kpi-sub">Dari pembuatan s.d. Delivered</div>
+        </div>
+        <div class="glass-card kpi-card kpi-not">
+          <div class="kpi-label">Notifikasi Sukses (L5)</div>
+          <div class="kpi-val" id="kpiSuccessRate">-</div>
+          <div class="kpi-sub">Rasio sukses SMS/Email</div>
+        </div>
+      </div>
+
+      <!-- Driver KPIs -->
+      <div class="driver-section-header">Metrik Driver & Bagi Hasil (DWH Measures)</div>
+      <div class="kpi-grid">
+        <div class="glass-card kpi-card kpi-rev">
+          <div class="kpi-label">Rerata Pendapatan Driver (L2)</div>
+          <div class="kpi-val" id="kpiDriverEarnings">-</div>
+          <div class="kpi-sub">Kalkulasi 70% di db operasional</div>
+        </div>
+        <div class="glass-card kpi-card kpi-dur">
+          <div class="kpi-label">Rating Performa Driver (L2)</div>
+          <div class="kpi-val" id="kpiDriverRating">-</div>
+          <div class="kpi-sub">Skala rating 5.0 operasional</div>
+        </div>
+        <div class="glass-card kpi-card kpi-del">
+          <div class="kpi-label">Jumlah Driver Aktif (L2)</div>
+          <div class="kpi-val" id="kpiDriverCount">-</div>
+          <div class="kpi-sub">COUNT(DISTINCT courier_id)</div>
+        </div>
+      </div>
+
+      <!-- Charts matrix -->
+      <div class="charts-grid">
+        <div class="glass-card chart-panel">
+          <h4 class="chart-title">Tren Volume Pengiriman per Bulan (L1)</h4>
+          <div class="chart-box"><canvas id="chartVolume"></canvas></div>
+        </div>
+        <div class="glass-card chart-panel">
+          <h4 class="chart-title">Proporsi Penggunaan Tipe Layanan (L4)</h4>
+          <div class="chart-box"><canvas id="chartService"></canvas></div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="glass-card chart-panel">
+          <h4 class="chart-title">Kepadatan Inbound per Transit Hub (L3)</h4>
+          <div class="chart-box"><canvas id="chartWarehouse"></canvas></div>
+        </div>
+        <div class="glass-card chart-panel">
+          <h4 class="chart-title">Keandalan Notifikasi per Channel (L5)</h4>
+          <div class="chart-box"><canvas id="chartNotification"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: CUSTOMER DESK (CREATE ORDER) -->
+    <section id="tab-customer" class="tab-content">
+      <h2 class="page-title">Customer Desk Portal</h2>
+      <p class="page-subtitle">Simulasi kalkulasi tarif dan pembuatan pesanan baru (Order & Tariff Service)</p>
+
+      <div class="glass-card">
+        <div class="alert alert-success" id="customerAlert">Order berhasil dibuat! Resi baru telah disimpan di variabel aktif.</div>
+        
+        <form id="orderForm">
+          <h3 class="variables-title" style="margin-bottom: 1rem;">1. Profil Pengirim (Sender)</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nama Pengirim</label>
+              <input type="text" id="senderName" value="Ahmad Dhani" required>
+            </div>
+            <div class="form-group">
+              <label>Kota Asal</label>
+              <select id="senderCity" required>
+                <option value="Bandung" selected>Bandung (Jawa Barat)</option>
+                <option value="Jakarta">Jakarta (DKI Jakarta)</option>
+                <option value="Surabaya">Surabaya (Jawa Timur)</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 class="variables-title" style="margin-bottom: 1rem; margin-top: 1rem;">2. Profil Penerima (Recipient)</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nama Penerima</label>
+              <input type="text" id="recipientName" value="Maia Estianty" required>
+            </div>
+            <div class="form-group">
+              <label>Kota Tujuan</label>
+              <select id="recipientCity" required>
+                <option value="Jakarta" selected>Jakarta (DKI Jakarta)</option>
+                <option value="Bandung">Bandung (Jawa Barat)</option>
+                <option value="Surabaya">Surabaya (Jawa Timur)</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 class="variables-title" style="margin-bottom: 1rem; margin-top: 1rem;">3. Deskripsi Paket & Layanan</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Berat Aktual Paket (Kg)</label>
+              <input type="number" id="pkgWeight" value="2.5" step="0.1" required>
+            </div>
+            <div class="form-group">
+              <label>Tipe Layanan</label>
+              <select id="pkgService" required>
+                <option value="EXPRESS" selected>EXPRESS (Kirim Kilat)</option>
+                <option value="REGULAR">REGULAR (Standar)</option>
+                <option value="CARGO">CARGO (Kargo Berat)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+              <input type="checkbox" id="hasInsurance" style="width: auto;" checked>
+              <label for="hasInsurance">Gunakan Asuransi Pengiriman</label>
+            </div>
+            <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+              <input type="checkbox" id="hasPacking" style="width: auto;">
+              <label for="hasPacking">Gunakan Packing Kayu</label>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="calculateTariff()">Cek Estimasi Tarif</button>
+            <button type="button" class="btn" onclick="createOrder()">Buat Pesanan Baru</button>
+          </div>
+        </form>
+
+        <div class="response-box" id="customerResponse"></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: DRIVER DISPATCH (SHIPPING SERVICE) -->
+    <section id="tab-driver" class="tab-content">
+      <h2 class="page-title">Driver Dispatch Control</h2>
+      <p class="page-subtitle">Manajemen penugasan driver operasional (Shipping & Dispatch Service)</p>
+
+      <!-- Courier Registration -->
+      <div class="glass-card">
+        <h3 class="variables-title" style="margin-bottom: 1rem;">Registrasi Driver Baru</h3>
+        <div class="alert alert-success" id="driverRegisterAlert">Driver baru berhasil diregistrasi!</div>
+        <form id="driverForm">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>ID Driver / Kurir</label>
+              <input type="text" id="driverId" value="C-DASHBOARD-01" required>
+            </div>
+            <div class="form-group">
+              <label>Nama Driver</label>
+              <input type="text" id="driverName" value="Raffi Ahmad" required>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Zona Operasional</label>
+              <select id="driverZone" required>
+                <option value="Bandung" selected>Bandung</option>
+                <option value="Jakarta">Jakarta</option>
+                <option value="Surabaya">Surabaya</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tipe Kendaraan</label>
+              <select id="driverVehicle" required>
+                <option value="MOTORCYCLE" selected>Sepeda Motor</option>
+                <option value="VAN">Mobil Van</option>
+                <option value="TRUCK">Truk Logistik</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn" onclick="registerDriver()">Daftarkan Kurir</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Courier Dispatch Process -->
+      <div class="glass-card">
+        <h3 class="variables-title" style="margin-bottom: 1rem;">Proses Penugasan Kurir</h3>
+        <div class="alert alert-success" id="driverDispatchAlert">Kurir berhasil ditugaskan untuk pesanan ini!</div>
+        
+        <div class="form-grid">
+          <div class="form-group">
+            <label>AWB / Resi Target</label>
+            <input type="text" id="dispatchAwb" placeholder="Masukkan AWB aktif...">
+          </div>
+          <div class="form-group">
+            <label>Zona Penjemputan</label>
+            <select id="dispatchZone">
+              <option value="Bandung" selected>Bandung</option>
+              <option value="Jakarta">Jakarta</option>
+              <option value="Surabaya">Surabaya</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="autoDispatch()">Cari & Tugaskan Kurir Otomatis</button>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+          <button type="button" class="btn btn-secondary" onclick="confirmPickUp()">Kurir Ambil Paket (Confirm PickUp)</button>
+        </div>
+
+        <div class="response-box" id="driverResponse"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: WAREHOUSE SCAN (INBOUND SCAN) -->
+    <section id="tab-warehouse" class="tab-content">
+      <h2 class="page-title">Warehouse Transit Control</h2>
+      <p class="page-subtitle">Simulasi scan barcode barang masuk di gudang transit (Warehouse & Inventory Service)</p>
+
+      <div class="glass-card">
+        <h3 class="variables-title" style="margin-bottom: 1rem;">Proses Inbound Paket</h3>
+        <div class="alert alert-success" id="warehouseAlert">Paket berhasil di-inbound di gudang transit!</div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Barcode AWB / Resi Paket</label>
+            <input type="text" id="inboundAwb" placeholder="Scan/Masukkan AWB aktif...">
+          </div>
+          <div class="form-group">
+            <label>Gudang Transit Sekarang</label>
+            <select id="inboundWh">
+              <option value="WH-BDG" selected>Hub Utama Bandung (WH-BDG)</option>
+              <option value="WH-UPI">Hub Transit UPI (WH-UPI)</option>
+              <option value="WH-JKT">Hub Regional Jakarta (WH-JKT)</option>
+              <option value="WH-SUB">Hub Timur Surabaya (WH-SUB)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="processInbound()">Proses Scan Inbound</button>
+        </div>
+
+        <div class="response-box" id="warehouseResponse"></div>
+      </div>
+    </section>
+
+    <!-- TAB 5: TRACK & TRACE TIMELINE -->
+    <section id="tab-tracking" class="tab-content">
+      <h2 class="page-title">Track & Trace Paket</h2>
+      <p class="page-subtitle">Pelacakan log histori logistik dan pengiriman paket secara real-time (NoSQL MongoDB)</p>
+
+      <div class="glass-card">
+        <h3 class="variables-title" style="margin-bottom: 1rem;">Masukkan Kode AWB / Resi</h3>
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+          <input type="text" id="searchAwb" placeholder="Masukkan AWB / Resi..." style="flex-grow: 1;">
+          <button type="button" class="btn" onclick="trackAwb()">Lacak Paket</button>
+        </div>
+
+        <!-- Stepper tracking timeline -->
+        <div class="alert alert-error" id="trackErrorAlert">Data pelacakan paket tidak ditemukan.</div>
+        
+        <div id="trackingResultArea" style="display: none;">
+          <h3 class="variables-title" style="border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.5rem; margin-bottom: 1rem;">
+            Linimasa Perjalanan Paket
+          </h3>
+          <div class="timeline-stepper" id="trackingTimeline">
+            <!-- Timeline steps render here dynamically -->
+          </div>
+
+          <h3 class="variables-title" style="margin-top: 2.5rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 1.5rem; margin-bottom: 1rem;">
+            Peta Lokasi Real-Time Pengiriman & Kurir
+          </h3>
+          <div id="trackingMap" style="height: 350px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); z-index: 1;"></div>
+        </div>
+
+        <!-- Manual Scan Log Event Tool -->
+        <h3 class="variables-title" style="margin-top: 3rem; margin-bottom: 1rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 2rem;">
+          Simulasi Scan Barcode Manual (Delivered / Out-for-Delivery)
+        </h3>
+        <div class="alert alert-success" id="manualScanAlert">Scan log manual berhasil dikirim!</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Kode Status Event</label>
+            <select id="manualActivity">
+              <option value="IN_TRANSIT">IN_TRANSIT (Sedang dalam perjalanan)</option>
+              <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY (Kurir mengantar ke alamat)</option>
+              <option value="DELIVERED" selected>DELIVERED (Paket berhasil diterima oleh customer)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Lokasi Kejadian</label>
+            <input type="text" id="manualLocation" value="WH-UPI">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="sendManualScan()">Kirim Log Scan Manual</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Entry Script Module (Initializes core operations) -->
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
