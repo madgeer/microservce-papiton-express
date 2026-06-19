@@ -728,9 +728,9 @@ sequenceDiagram
     
     S->>R: UpdateStockStatus("RESI-123", "WH-BDO", "AT_HUB")
     activate R
-    R->>DB: UPDATE inbound_packages SET status = 'AT_HUB' WHERE resi = 'RESI-123'
+    R->>DB: UPSERT inbound_packages (resi, status, warehouse_id)
     activate DB
-    DB-->>R: Success (Row Affected)
+    DB-->>R: Success (Created / Updated)
     deactivate DB
     R-->>S: Return nil (Success)
     deactivate R
@@ -833,11 +833,16 @@ Pengembangan lokal diatur dengan file `docker-compose.yml` untuk menjamin konsis
 *   **Streaming Broker**: `zookeeper` dan `kafka` CP untuk event broker lokal.
 *   **App Service Containers**: `warehouse-app`, `shipping-app`, `order-app`, `tracking-app`, `notification-app` yang terhubung dalam network bridge `papiton-net`.
 
-### 7.2 Konfigurasi Kubernetes
-Untuk lingkungan staging/produksi, sistem dideploy di kluster Kubernetes (K8s) dengan struktur berkas konfigurasi (`deployment.yaml` & `k8s/`):
+### 7.2 Konfigurasi Kubernetes & Deployment Cloud Azure
+Untuk lingkungan staging/produksi, sistem dirancang untuk dapat dideploy pada kluster Kubernetes (K8s) lokal maupun cloud modern:
 *   **Pods Deployment**: Setiap layanan mikro dibungkus menjadi sebuah Kubernetes Deployment dengan spesifikasi replikasi pod dinamis.
 *   **Services**: Kubernetes Service tipe `ClusterIP` dipakai untuk interkoneksi internal, sementara Ingress Controller digunakan sebagai gateway luar untuk mengarahkan rute HTTP ke masing-masing pod handler.
 *   **ConfigMaps & Secrets**: Konfigurasi koneksi URI database PostgreSQL/MongoDB, alamat port Kafka, serta kunci rahasia FCM disimpan secara eksternal.
+*   **Otomasi Microsoft Azure (AKS & ACR)**:
+    Sistem menyediakan otomasi deployment ke **Azure Kubernetes Service (AKS)** dan **Azure Container Registry (ACR)** di wilayah **`westus2`** melalui skrip otomatisasi:
+    1.  `deploy_azure.ps1` (PowerShell untuk Windows)
+    2.  `deploy_azure.sh` (Bash untuk Git Bash/Linux/macOS)
+    Skrip tersebut secara otomatis mengisolasi file manifest asli `k8s/` ke folder temporer `k8s-azure/`, mengonversi tag Docker local image menjadi Azure registry domain (`*.azurecr.io`), mem-build ketujuh microservices, mengunggah (*push*) ke ACR, membuat Resource Group (`papiton-azure-rg`), mendirikan kluster AKS, dan melakukan *applying* manifests ke Azure secara berurutan.
 
 ### 7.3 Pipeline CI/CD Jenkins
 CI/CD dikontrol secara terpusat oleh Jenkins melalui pipeline yang didefinisikan pada file `Jenkinsfile` di root proyek. Pipeline ini mendukung deteksi perubahan otomatis (*git changeset checking*) untuk membangun layanan yang berubah saja demi efisiensi waktu build.

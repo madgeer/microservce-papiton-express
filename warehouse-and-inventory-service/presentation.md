@@ -7,7 +7,7 @@ Layanan Go transaksional untuk mencatat barang masuk transit gudang (*inbound*),
 
 ## 💻 Aspek Teknis (Tech Stack & DB)
 *   **Bahasa Pemrograman**: Go (Golang) menggunakan `net/http` standard library.
-*   **Database**: PostgreSQL (`papiton_warehouse`), mengelola tabel `warehouses`, `inbound_packages`, `manifests`, `manifest_packages`, dan `sorting_lanes`.
+*   **Database**: PostgreSQL (`papiton_warehouse`), mengelola tabel `warehouses`, `inbound_packages`, `manifests`, `manifest_packages`.
 *   **Kafka Event**: Publisher untuk mengirimkan event `package.in_transit` ke topik `papiton.events.tracking` setiap kali paket sukses diproses masuk ke hub transit.
 
 ---

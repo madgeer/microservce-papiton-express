@@ -58,7 +58,7 @@ func GetPricing(rdb *redis.Client, key string) (float64, error) {
 		var defaultRate float64
 		switch key {
 		case "EXPRESS":
-			defaultRate = 7500.0
+			defaultRate = 10000.0
 		case "CARGO":
 			defaultRate = 3500.0
 		default:

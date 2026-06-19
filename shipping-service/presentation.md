@@ -22,7 +22,7 @@ Layanan Go transaksional untuk manajemen kurir, otomatisasi penugasan penjemputa
 
 ---
 
-## 🔄 Integrasi Kafka (Payload Ter-enrich)
+## 🔄 Integrasi Kafka (Payload Ter-enrich)  
 Event `package.picked_up` / `dispatch.assigned` yang dipublikasikan diperkaya (*enriched*) dengan informasi `vehicle_type` (tipe kendaraan kurir: Motor/Van/Truk) serta `route_instruction` dari algoritma rute. Ini bertujuan agar ETL Service dapat menghitung pendapatan dan rating kurir langsung dari payload tanpa menyentuh database Shipping.
 
 ---
